@@ -1,0 +1,10 @@
+node_modules
+.next
+dist
+.env
+.env.local
+frontend/.env.local
+backend/.env.local
+*.log
+backend/memo.db
+backend/memo.db-*
