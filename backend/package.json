@@ -4,8 +4,11 @@
   "type": "commonjs",
   "scripts": {
     "dev": "node src/index.js",
+    "build": "node -e \"console.log('backend: no build step required')\"",
     "start": "node src/index.js",
-    "migrate:supabase": "node scripts/migrate-sqlite-to-supabase.js"
+    "migrate:supabase": "node scripts/migrate-sqlite-to-supabase.js",
+    "hosts:providers": "node scripts/print-provider-hosts.js",
+    "probe:stream": "node scripts/stream-probe.js"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",

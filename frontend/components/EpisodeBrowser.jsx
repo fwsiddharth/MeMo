@@ -3,6 +3,13 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 
+function formatStableDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
 export default function EpisodeBrowser({
   animeId,
   provider = "anilist",
@@ -13,6 +20,7 @@ export default function EpisodeBrowser({
   episodes = [],
   historyItems = [],
 }) {
+  const encodedAnimeId = encodeURIComponent(String(animeId || ""));
   const [query, setQuery] = useState("");
   const [descending, setDescending] = useState(false);
 
@@ -92,7 +100,7 @@ export default function EpisodeBrowser({
             <Link
               key={ep.id}
               href={{
-                pathname: `/player/${animeId}/${encodeURIComponent(ep.id)}`,
+                pathname: `/player/${encodedAnimeId}/${encodeURIComponent(ep.id)}`,
                 query: {
                   source,
                   provider,
@@ -129,7 +137,7 @@ export default function EpisodeBrowser({
                   <div className="flex items-center justify-between text-[11px] text-zinc-500">
                     <span>{isCompleted ? "Completed" : isInProgress ? `${Math.round(progress)}% watched` : "Not started"}</span>
                     {history.updatedAt ? (
-                      <span>{new Date(history.updatedAt).toLocaleDateString()}</span>
+                      <span>{formatStableDate(history.updatedAt)}</span>
                     ) : null}
                   </div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">

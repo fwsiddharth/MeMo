@@ -2,13 +2,15 @@ import Link from "next/link";
 
 export default function ContinueCard({ item, className = "" }) {
   const progress = item?.duration > 0 ? Math.min(100, Math.max(0, (item.position / item.duration) * 100)) : 0;
+  const encodedAnimeId = encodeURIComponent(String(item?.animeId || ""));
 
   return (
     <Link
       href={{
-        pathname: `/player/${item.animeId}/${encodeURIComponent(item.episodeId)}`,
+        pathname: `/player/${encodedAnimeId}/${encodeURIComponent(item.episodeId)}`,
         query: {
           provider: item.provider || "anilist",
+          source: item.source || "",
           title: item.episodeTitle || "",
           ep: item.episodeNumber || "",
           animeTitle: item.animeTitle || "",

@@ -6,12 +6,13 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { stripHtml } from "../lib/api";
 
 function animeHref(anime) {
+  const encodedAnimeId = encodeURIComponent(String(anime?.id || ""));
   return anime?.provider && anime.provider !== "anilist"
     ? {
-        pathname: `/anime/${anime.id}`,
+        pathname: `/anime/${encodedAnimeId}`,
         query: { provider: anime.provider },
       }
-    : `/anime/${anime?.id}`;
+    : `/anime/${encodedAnimeId}`;
 }
 
 export default function HomeSpotlight({ items = [] }) {

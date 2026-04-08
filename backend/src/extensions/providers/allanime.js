@@ -442,9 +442,20 @@ async function resolveByseSource(entry, sourceUrl) {
   }
 
   const apiUrl = new URL(`/api/videos/${encodeURIComponent(code)}/embed/playback`, sourceUrl).toString();
-  const response = await fetch(apiUrl, {
-    headers: { Accept: "application/json" },
-  });
+  
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 6000);
+
+  let response;
+  try {
+    response = await fetch(apiUrl, {
+      signal: controller.signal,
+      headers: { Accept: "application/json" },
+    });
+    clearTimeout(timeout);
+  } catch (err) {
+    throw new Error(`Filemoon timeout or fetch failed: ${err.message}`);
+  }
 
   if (!response.ok) {
     throw new Error(`Filemoon playback HTTP ${response.status}`);
@@ -506,42 +517,51 @@ async function resolveVidnestSource(sourceUrl) {
     throw new Error("Invalid Vidnest embed url.");
   }
 
-  const response = await fetch("https://vidnest.io/dl", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({
-      op: "embed",
-      file_code: code,
-      auto: "1",
-      referer: "",
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 6000);
+  
+  try {
+    const response = await fetch("https://vidnest.io/dl", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        op: "embed",
+        file_code: code,
+        auto: "1",
+        referer: "",
+      }),
+    });
+    clearTimeout(timeout);
 
   if (!response.ok) {
     throw new Error(`Vidnest player HTTP ${response.status}`);
   }
 
-  const html = await response.text();
-  const sources = parseVidnestSources(html);
-  if (!sources.length) {
-    throw new Error("Vidnest sources missing.");
-  }
+    const html = await response.text();
+    const sources = parseVidnestSources(html);
+    if (!sources.length) {
+      throw new Error("Vidnest sources missing.");
+    }
 
-  return {
-    type: "mp4",
-    url: sources[0].url,
-    subtitles: [],
-    headers: {
-      Referer: sourceUrl,
-      Origin: "https://vidnest.io",
-    },
-    qualities: sources.map((item) => ({
-      label: item.label || "Source",
-      value: item.label || item.url,
-    })),
-  };
+    return {
+      type: "mp4",
+      url: sources[0].url,
+      subtitles: [],
+      headers: {
+        Referer: sourceUrl,
+        Origin: "https://vidnest.io",
+      },
+      qualities: sources.map((item) => ({
+        label: item.label || "Source",
+        value: item.label || item.url,
+      })),
+    };
+  } catch (err) {
+    throw new Error(`Vidnest timeout or fetch failed: ${err.message}`);
+  }
 }
 
 function chooseResolver(entry) {

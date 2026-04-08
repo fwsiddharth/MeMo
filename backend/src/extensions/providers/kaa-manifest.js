@@ -1,10 +1,11 @@
-const MANIFEST_URL =
-  process.env.KAA_MANIFEST_URL ||
-  "https://raw.githubusercontent.com/Thekingcrusher/online-stream-providers/refs/heads/main/kaa/manifest.json";
+const BASE_URL = "https://kaa.lt";
+const RETRYABLE_STATUSES = new Set([408, 409, 425, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524]);
+const PREFERRED_SERVERS = ["VidStreaming", "CatStream", "Vidstream", "Cat"];
+const FETCH_TIMEOUT_MS = 15000;
 
-const MANIFEST_TTL_MS = 30 * 60 * 1000;
-
-let manifestCache = null;
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function decodeHtmlEntities(value) {
   return String(value || "")
@@ -38,36 +39,163 @@ function normalizeLangCode(lang) {
   return value;
 }
 
-function normalizedText(value) {
+function normalizeText(value) {
   return String(value || "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 }
 
-function scoreMatch(result, candidateNames) {
-  const title = normalizedText(result?.title_en || result?.title || "");
-  if (!title) return 0;
+function getAnimeNames(anime) {
+  return Array.from(
+    new Set(
+      [
+        anime?.titleEnglish,
+        anime?.titleRomaji,
+        anime?.titleNative,
+        anime?.title,
+        ...(Array.isArray(anime?.synonyms) ? anime.synonyms : []),
+      ]
+        .map((value) => String(value || "").trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function scoreNameMatch(candidate, target) {
+  if (!candidate || !target) return 0;
+  if (candidate === target) return 100;
+  if (candidate.startsWith(target) || target.startsWith(candidate)) return 85;
+  if (candidate.includes(target) || target.includes(candidate)) return 70;
+  return 0;
+}
+
+function scoreShowMatch(show, anime) {
+  const showNames = Array.from(
+    new Set([show?.title, show?.title_en].map((v) => String(v || "").trim()).filter(Boolean)),
+  ).map(normalizeText);
+  const animeNames = getAnimeNames(anime).map(normalizeText);
 
   let best = 0;
-  for (const rawName of candidateNames) {
-    const name = normalizedText(rawName);
-    if (!name) continue;
-    if (title === name) best = Math.max(best, 100);
-    else if (title.startsWith(name) || name.startsWith(title)) best = Math.max(best, 85);
-    else if (title.includes(name) || name.includes(title)) best = Math.max(best, 70);
+  for (const showName of showNames) {
+    for (const animeName of animeNames) {
+      best = Math.max(best, scoreNameMatch(showName, animeName));
+    }
   }
 
-  if ((result?.locales || []).includes("ja-JP")) best += 3;
-  if ((result?.locales || []).includes("en-US")) best += 2;
+  const animeYear = Number(anime?.seasonYear || anime?.year);
+  const showYear = Number(show?.year);
+  if (Number.isFinite(animeYear) && Number.isFinite(showYear) && animeYear === showYear) {
+    best += 6;
+  }
+
+  const animeEpisodes = Number(anime?.episodes);
+  const showEpisodes = Number(show?.episode_count);
+  if (Number.isFinite(animeEpisodes) && Number.isFinite(showEpisodes)) {
+    if (animeEpisodes === showEpisodes) best += 4;
+    else if (Math.abs(animeEpisodes - showEpisodes) <= 2) best += 2;
+  }
+
+  if ((show?.locales || []).includes("ja-JP")) best += 3;
+  if ((show?.locales || []).includes("en-US")) best += 2;
+
   return best;
 }
 
-function pickPreferredLanguage(languages) {
-  if (!Array.isArray(languages) || !languages.length) return "ja-JP";
-  if (languages.includes("zh-CN")) return "zh-CN";
-  if (languages.includes("ja-JP")) return "ja-JP";
-  return languages[0];
+async function kaaFetch(url, options = {}, retries = 2) {
+  let lastError = null;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+          ...options.headers,
+        },
+      });
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        if (RETRYABLE_STATUSES.has(response.status) && attempt < retries) {
+          await sleep(500 * (attempt + 1));
+          continue;
+        }
+        throw new Error(`KAA HTTP ${response.status}`);
+      }
+
+      return response;
+    } catch (error) {
+      clearTimeout(timeout);
+      lastError = error;
+      if (attempt < retries) {
+        await sleep(500 * (attempt + 1));
+        continue;
+      }
+    }
+  }
+  throw lastError || new Error(`Failed to fetch ${url}`);
+}
+
+async function kaaFetchJson(url, options = {}) {
+  const res = await kaaFetch(url, options);
+  return res.json();
+}
+
+async function searchKaa(query) {
+  const res = await kaaFetchJson(`${BASE_URL}/api/fsearch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query, page: 1 }),
+  });
+  return Array.isArray(res?.result) ? res.result : [];
+}
+
+async function resolveShow(anime) {
+  const names = getAnimeNames(anime);
+  const bySlug = new Map();
+  const errors = [];
+
+  for (const name of names) {
+    if (name.length < 2) continue;
+    try {
+      const q = name.replace(/[^a-zA-Z0-9 ]/g, " ").trim();
+      if (q.length < 2) continue;
+
+      const results = await searchKaa(q);
+      for (const item of results) {
+        if (!item?.slug || bySlug.has(item.slug)) continue;
+        bySlug.set(item.slug, item);
+      }
+    } catch (error) {
+      errors.push(error?.message || String(error));
+    }
+  }
+
+  const candidates = Array.from(bySlug.values());
+  if (!candidates.length) {
+    throw new Error(errors[0] || "KAA show not found for this anime.");
+  }
+
+  let best = null;
+  let bestScore = -1;
+  for (const candidate of candidates) {
+    const score = scoreShowMatch(candidate, anime);
+    if (score > bestScore) {
+      best = candidate;
+      bestScore = score;
+    }
+  }
+
+  if (!best || !best.slug) {
+    throw new Error("No suitable KAA show match found.");
+  }
+
+  return best;
 }
 
 function parseEpisodeId(episodeId) {
@@ -80,18 +208,31 @@ function parseEpisodeId(episodeId) {
   return null;
 }
 
-function pickServer(servers, preferredServers = []) {
-  const list = Array.isArray(servers) ? servers : [];
-  if (!list.length) return null;
+async function getAllEpisodes(showSlug, language) {
+  const url = `${BASE_URL}/api/show/${showSlug}/episodes?ep=1&lang=${encodeURIComponent(language)}`;
+  const firstData = await kaaFetchJson(`${url}&page=1`);
 
-  for (const preferred of preferredServers) {
-    const found = list.find(
-      (server) => String(server?.name || "").toLowerCase().trim() === String(preferred).toLowerCase().trim(),
-    );
-    if (found) return found;
-  }
+  const pages = Array.isArray(firstData?.pages) ? firstData.pages : [];
+  const pageNumbers = pages
+    .map((p) => Number(p?.number))
+    .filter((n) => Number.isFinite(n) && n > 1);
 
-  return list[0];
+  const all = Array.isArray(firstData?.result) ? [...firstData.result] : [];
+  const rest = await Promise.all(
+    pageNumbers.map(async (pageNo) => {
+      try {
+        const json = await kaaFetchJson(`${url}&page=${pageNo}`);
+        return Array.isArray(json?.result) ? json.result : [];
+      } catch {
+        return [];
+      }
+    }),
+  );
+
+  for (const list of rest) all.push(...list);
+  return all
+    .filter((ep) => Number.isInteger(ep?.episode_number))
+    .sort((a, b) => Number(a.episode_number) - Number(b.episode_number));
 }
 
 function extractStreamFromPlayerHtml(html, playerUrl) {
@@ -99,10 +240,16 @@ function extractStreamFromPlayerHtml(html, playerUrl) {
   if (!propsMatch) return { manifestUrl: null, subtitles: [] };
 
   const propsRaw = decodeHtmlEntities(propsMatch[1]);
-  const props = JSON.parse(propsRaw);
+  let props;
+  try {
+    props = JSON.parse(propsRaw);
+  } catch {
+    return { manifestUrl: null, subtitles: [] };
+  }
 
   const manifestRaw = Array.isArray(props?.manifest) ? props.manifest[1] : props?.manifest;
-  const manifestUrl = resolveUrl(manifestRaw, playerUrl);
+  let manifestUrl = resolveUrl(manifestRaw, playerUrl);
+  if (manifestUrl) manifestUrl = manifestUrl.replace("https:///", "https://");
 
   const subtitlesRaw = Array.isArray(props?.subtitles) ? props.subtitles[1] : props?.subtitles;
   const subtitles = [];
@@ -113,8 +260,10 @@ function extractStreamFromPlayerHtml(html, playerUrl) {
 
       const lang = Array.isArray(item.language) ? item.language[1] : item.language;
       const label = Array.isArray(item.name) ? item.name[1] : item.name;
-      const src = resolveUrl(Array.isArray(item.src) ? item.src[1] : item.src, playerUrl);
+      let src = resolveUrl(Array.isArray(item.src) ? item.src[1] : item.src, playerUrl);
       if (!src) continue;
+
+      src = src.replace("https:///", "https://");
 
       subtitles.push({
         lang: normalizeLangCode(lang),
@@ -127,149 +276,39 @@ function extractStreamFromPlayerHtml(html, playerUrl) {
   return { manifestUrl, subtitles };
 }
 
-function parsePreferredServersFromPayload(payload) {
-  const payloadText = String(payload || "");
-  const match = payloadText.match(/episodeServers\s*:\s*\[([^\]]+)\]/);
-  if (!match) return ["VidStreaming", "CatStream"];
-
-  return match[1]
-    .split(",")
-    .map((x) => x.trim().replace(/^["'`]|["'`]$/g, ""))
-    .filter(Boolean);
-}
-
-async function getManifestConfig() {
-  const now = Date.now();
-  if (manifestCache && manifestCache.expiresAt > now) {
-    return manifestCache.value;
-  }
-
-  const response = await fetch(MANIFEST_URL, {
-    headers: { Accept: "application/json" },
-  });
-  if (!response.ok) {
-    throw new Error(`KAA manifest HTTP ${response.status}`);
-  }
-  const json = await response.json();
-
-  const payloadText = String(json?.payload || "");
-  const baseMatch = payloadText.match(/base\s*=\s*["'`](https?:\/\/[^"'`]+)["'`]/);
-  const base = baseMatch?.[1] || "https://kaa.lt";
-  const preferredServers = parsePreferredServersFromPayload(payloadText);
-
-  const value = {
-    name: json?.name || "KickAssAnime",
-    base,
-    preferredServers,
-  };
-
-  manifestCache = {
-    value,
-    expiresAt: now + MANIFEST_TTL_MS,
-  };
-  return value;
-}
-
-async function searchKaa(query) {
-  const config = await getManifestConfig();
-  const response = await fetch(`${config.base}/api/fsearch`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, page: 1 }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`KAA search HTTP ${response.status}`);
-  }
-
-  const json = await response.json();
-  return Array.isArray(json?.result) ? json.result : [];
-}
-
-async function resolveShow(anime) {
-  const names = [
-    anime?.titleEnglish,
-    anime?.titleRomaji,
-    anime?.title,
-  ].filter(Boolean);
-
-  let candidates = [];
-  for (const name of names) {
-    const q = String(name).trim();
-    if (q.length < 2) continue;
-    const result = await searchKaa(q);
-    candidates = candidates.concat(result);
-  }
-
-  if (!candidates.length) {
-    throw new Error("KAA show not found for this anime.");
-  }
-
-  let best = null;
-  let bestScore = -1;
-  for (const item of candidates) {
-    const score = scoreMatch(item, names);
-    if (score > bestScore) {
-      best = item;
-      bestScore = score;
-    }
-  }
-
-  if (!best || !best.slug) {
-    throw new Error("No suitable KAA show match found.");
-  }
-
-  return best;
-}
-
-async function getAllEpisodes(config, showSlug, language) {
-  const base = `${config.base}/api/show/${showSlug}/episodes?ep=1&lang=${encodeURIComponent(language)}`;
-  const firstRes = await fetch(`${base}&page=1`);
-  if (!firstRes.ok) {
-    throw new Error(`KAA episodes HTTP ${firstRes.status}`);
-  }
-
-  const firstData = await firstRes.json();
-  const pages = Array.isArray(firstData?.pages) ? firstData.pages : [];
-  const pageNumbers = pages
-    .map((p) => Number(p?.number))
-    .filter((n) => Number.isFinite(n) && n > 1);
-
-  const all = Array.isArray(firstData?.result) ? [...firstData.result] : [];
-  const rest = await Promise.all(
-    pageNumbers.map(async (pageNo) => {
-      const res = await fetch(`${base}&page=${pageNo}`);
-      if (!res.ok) return [];
-      const json = await res.json();
-      return Array.isArray(json?.result) ? json.result : [];
-    }),
-  );
-
-  for (const list of rest) all.push(...list);
-  return all
-    .filter((ep) => Number.isInteger(ep?.episode_number))
-    .sort((a, b) => Number(a.episode_number) - Number(b.episode_number));
-}
-
 module.exports = {
-  name: "kaa-manifest",
+  name: "kaa-manifest", // Maintained name for backward compatibility in the DB
 
   async search(query) {
-    return searchKaa(query);
+    const results = await searchKaa(query);
+    return results.map((r) => ({
+      id: r.slug,
+      title: r.title_en || r.title,
+      titleEnglish: r.title_en,
+      titleRomaji: r.title,
+      provider: "kaa",
+      episodes: r.episode_count,
+      seasonYear: r.year,
+    }));
   },
 
   async getEpisodes(anime) {
-    const config = await getManifestConfig();
     const show = await resolveShow(anime);
 
-    const langRes = await fetch(`${config.base}/api/show/${show.slug}/language`);
-    if (!langRes.ok) {
-      throw new Error(`KAA language HTTP ${langRes.status}`);
+    let languages = [];
+    try {
+      const langJson = await kaaFetchJson(`${BASE_URL}/api/show/${show.slug}/language`);
+      languages = langJson?.result || [];
+    } catch {
+      languages = ["ja-JP"];
     }
-    const langJson = await langRes.json();
-    const language = pickPreferredLanguage(langJson?.result);
 
-    const episodes = await getAllEpisodes(config, show.slug, language);
+    let language = "ja-JP";
+    if (languages.includes("ja-JP")) language = "ja-JP";
+    else if (languages.includes("zh-CN")) language = "zh-CN";
+    else if (languages.length > 0) language = languages[0];
+
+    const episodes = await getAllEpisodes(show.slug, language);
     return {
       translationOptions: ["sub"],
       activeTranslation: "sub",
@@ -285,45 +324,75 @@ module.exports = {
   },
 
   async getStream(_anime, episodeId) {
-    const config = await getManifestConfig();
     const parsed = parseEpisodeId(episodeId);
     if (!parsed) {
-      throw new Error("Invalid episode id for KAA source.");
+      throw new Error("Invalid KAA episode id.");
     }
 
-    const epKey = `ep-${parsed.episodeString}-${parsed.epSlug}`;
-    const epRes = await fetch(`${config.base}/api/show/${parsed.showSlug}/episode/${epKey}`);
-    if (!epRes.ok) {
-      throw new Error(`KAA episode HTTP ${epRes.status}`);
+    const { showSlug, episodeString, epSlug } = parsed;
+    const epKey = `ep-${episodeString}-${epSlug}`;
+
+    const epData = await kaaFetchJson(`${BASE_URL}/api/show/${showSlug}/episode/${epKey}`);
+    const servers = Array.isArray(epData?.servers) ? epData.servers : [];
+
+    const serversToTry = [];
+    for (const pref of PREFERRED_SERVERS) {
+      const match = servers.find((s) => String(s?.name || "").toLowerCase().trim() === pref.toLowerCase());
+      if (match) serversToTry.push(match);
+    }
+    for (const s of servers) {
+      if (!serversToTry.includes(s)) serversToTry.push(s);
     }
 
-    const epData = await epRes.json();
-    const server = pickServer(epData?.servers, config.preferredServers);
-    if (!server?.src) {
-      throw new Error("No server available for this episode.");
+    if (!serversToTry.length) {
+      throw new Error("No KAA server available for this episode.");
     }
 
-    const playerUrl = String(server.src).replace("vast", "player");
-    const playerRes = await fetch(playerUrl);
-    if (!playerRes.ok) {
-      throw new Error(`KAA player HTTP ${playerRes.status}`);
+    let lastError = null;
+
+    for (const server of serversToTry) {
+      if (!server?.src) continue;
+
+      try {
+        const playerUrl = String(server.src).replace("vast", "player");
+        let playerOrigin = "";
+        try {
+          playerOrigin = new URL(playerUrl).origin;
+        } catch {
+          // ignore parsing error if source url is malformed
+        }
+
+        const playerRes = await kaaFetch(playerUrl, {
+          headers: {
+            Accept: "text/html,application/xhtml+xml,*/*",
+            Referer: `${BASE_URL}/`,
+            Origin: BASE_URL,
+          },
+        });
+
+        const html = await playerRes.text();
+        const { manifestUrl, subtitles } = extractStreamFromPlayerHtml(html, playerUrl);
+
+        if (!manifestUrl) {
+          lastError = new Error(`Stream manifest not found in ${server.name} player.`);
+          continue;
+        }
+
+        return {
+          type: "hls",
+          url: manifestUrl,
+          subtitles,
+          headers: {
+            Referer: playerUrl,
+            Origin: playerOrigin || "https://krussdomi.com",
+          },
+          qualities: [{ label: "Auto", value: "auto" }],
+        };
+      } catch (error) {
+        lastError = error;
+      }
     }
 
-    const html = await playerRes.text();
-    const { manifestUrl, subtitles } = extractStreamFromPlayerHtml(html, playerUrl);
-    if (!manifestUrl) {
-      throw new Error("Stream manifest not found in player page.");
-    }
-
-    return {
-      type: "hls",
-      url: manifestUrl,
-      subtitles,
-      headers: {
-        Referer: playerUrl,
-        Origin: "https://krussdomi.com",
-      },
-      qualities: [{ label: "Auto", value: "auto" }],
-    };
+    throw lastError || new Error("Failed to resolve stream from any KAA server.");
   },
 };

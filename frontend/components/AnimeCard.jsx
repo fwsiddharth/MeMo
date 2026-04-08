@@ -2,12 +2,21 @@ import Link from "next/link";
 import { stripHtml } from "../lib/api";
 
 export default function AnimeCard({ anime }) {
+  const encodedAnimeId = encodeURIComponent(String(anime?.id || ""));
   const href = anime.provider && anime.provider !== "anilist"
     ? {
-        pathname: `/anime/${anime.id}`,
-        query: { provider: anime.provider },
+        pathname: `/anime/${encodedAnimeId}`,
+        query: {
+          provider: anime.provider,
+        },
       }
-    : `/anime/${anime.id}`;
+    : `/anime/${encodedAnimeId}`;
+
+  const metaLine =
+    stripHtml(anime.description || "") ||
+    [anime.languages?.slice?.(0, 2)?.join(" • "), anime.platforms?.slice?.(0, 2)?.join(" • ")]
+      .filter(Boolean)
+      .join(" · ");
 
   return (
     <Link
@@ -34,7 +43,7 @@ export default function AnimeCard({ anime }) {
             </span>
           ) : null}
         </div>
-        <p className="line-clamp-2 text-xs text-zinc-400">{stripHtml(anime.description || "")}</p>
+        <p className="line-clamp-2 text-xs text-zinc-400">{metaLine || "No synopsis available."}</p>
         <p className="text-xs text-zinc-500">
           {anime.episodes ? `${anime.episodes} eps` : "Unknown episodes"}
         </p>

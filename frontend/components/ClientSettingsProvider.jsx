@@ -4,7 +4,6 @@ import { createContext, startTransition, useContext, useEffect, useMemo, useStat
 import { apiFetch } from "../lib/api";
 
 const defaultSettings = {
-  defaultSource: "allanime",
   autoplayNext: true,
   sidebarCompact: true,
   preferredSubLang: "en",

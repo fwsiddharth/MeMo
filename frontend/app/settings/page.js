@@ -15,13 +15,11 @@ export default function SettingsPage() {
   const router = useRouter();
   const { settings: clientSettings, setSettings: setClientSettings } = useClientSettings();
   const [settings, setSettings] = useState({
-    defaultSource: "allanime",
     autoplayNext: true,
     sidebarCompact: true,
     preferredSubLang: "en",
     uiAnimations: true,
   });
-  const [extensions, setExtensions] = useState([]);
   const [trackers, setTrackers] = useState([]);
   const [trackerDraft, setTrackerDraft] = useState({});
   const [saving, setSaving] = useState(false);
@@ -42,7 +40,6 @@ export default function SettingsPage() {
     const nextSettings = settingsRes.settings || {};
     setSettings(nextSettings);
     setClientSettings(nextSettings);
-    setExtensions(settingsRes.extensions || []);
     setTrackers(trackersRes.items || []);
   };
 
@@ -186,24 +183,9 @@ export default function SettingsPage() {
               <Database size={16} />
               Source & Playback
             </CardTitle>
-            <CardDescription>Pick default extension source and player defaults.</CardDescription>
+            <CardDescription>Configure player behavior.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <label className="space-y-1 text-sm">
-                <span className="text-zinc-300">Default Source</span>
-              <select
-                value={settings.defaultSource || ""}
-                onChange={(e) => updateDraftSettings({ defaultSource: e.target.value })}
-                className="h-9 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 text-sm outline-none"
-              >
-                {extensions.map((ext) => (
-                  <option key={ext} value={ext}>
-                    {ext}
-                  </option>
-                ))}
-              </select>
-            </label>
-
             <label className="space-y-1 text-sm">
               <span className="text-zinc-300">Preferred Subtitle Language</span>
               <Input

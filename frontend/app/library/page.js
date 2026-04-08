@@ -63,10 +63,10 @@ export default async function LibraryPage() {
                 href={
                   item.provider && item.provider !== "anilist"
                     ? {
-                        pathname: `/anime/${item.animeId}`,
-                        query: { provider: item.provider },
+                        pathname: `/anime/${encodeURIComponent(item.animeId)}`,
+                        query: { provider: item.provider, source: item.source || item.provider },
                       }
-                    : `/anime/${item.animeId}`
+                    : `/anime/${encodeURIComponent(item.animeId)}`
                 }
                 className="glass overflow-hidden rounded-2xl transition hover:border-zinc-500"
               >
@@ -94,9 +94,10 @@ export default async function LibraryPage() {
             <Link
               key={`${item.provider || "anilist"}-${item.animeId}-${item.episodeId}-${item.updatedAt}`}
               href={{
-                pathname: `/player/${item.animeId}/${encodeURIComponent(item.episodeId)}`,
+                pathname: `/player/${encodeURIComponent(item.animeId)}/${encodeURIComponent(item.episodeId)}`,
                 query: {
                   provider: item.provider || "anilist",
+                  source: item.source || "",
                   ep: item.episodeNumber || "",
                   title: item.episodeTitle || "",
                   animeTitle: item.animeTitle || "",

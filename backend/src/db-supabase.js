@@ -1,7 +1,6 @@
 const { createClient } = require("@supabase/supabase-js");
 
 const DEFAULT_SETTINGS = {
-  default_source: "allanime",
   sidebar_compact: "1",
   autoplay_next: "1",
   preferred_sub_lang: "en",
@@ -28,11 +27,6 @@ function getSupabaseClient() {
   });
 
   return supabase;
-}
-
-function normalizeDefaultSource(value) {
-  if (value === "mock-hianime") return "allanime";
-  return value || "allanime";
 }
 
 function boolToSetting(value, defaultValue = true) {
@@ -299,7 +293,6 @@ async function getSettings(userId) {
   const map = new Map((data || []).map((row) => [row.key, row.value]));
 
   return {
-    defaultSource: normalizeDefaultSource(map.get("default_source")),
     sidebarCompact: boolToSetting(map.get("sidebar_compact"), true),
     autoplayNext: boolToSetting(map.get("autoplay_next"), true),
     preferredSubLang: map.get("preferred_sub_lang") || "en",
@@ -311,13 +304,6 @@ async function updateSettings(input, userId) {
   await ensureSeedSettings(userId);
   const rows = [];
 
-  if (typeof input.defaultSource === "string") {
-    rows.push({
-      user_id: userId,
-      key: "default_source",
-      value: normalizeDefaultSource(input.defaultSource),
-    });
-  }
   if (typeof input.sidebarCompact === "boolean") {
     rows.push({
       user_id: userId,
@@ -354,11 +340,6 @@ async function updateSettings(input, userId) {
     .upsert(rows, { onConflict: "user_id,key" });
 
   ensureNoError(error, "Failed to update settings.");
-}
-
-async function getDefaultSource(userId) {
-  const settings = await getSettings(userId);
-  return normalizeDefaultSource(settings.defaultSource);
 }
 
 async function listTrackers(userId) {
@@ -419,7 +400,6 @@ module.exports = {
   listFavorites,
   getSettings,
   updateSettings,
-  getDefaultSource,
   listTrackers,
   connectTracker,
   disconnectTracker,

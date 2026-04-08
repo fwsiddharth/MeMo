@@ -14,6 +14,8 @@ import {
   Minimize,
   PictureInPicture2,
   Captions,
+  Settings,
+  X,
 } from "lucide-react";
 import { apiFetch } from "../lib/api";
 import { useClientSettings } from "./ClientSettingsProvider";
@@ -49,15 +51,12 @@ export default function VideoPlayer({
   const iframeRef = useRef(null);
   const hlsRef = useRef(null);
   const autoplayNextRef = useRef(true);
-  const {
-    settings,
-    setSettings,
-  } = useClientSettings();
+  const controlsTimeoutRef = useRef(null);
+
+  const { settings, setSettings } = useClientSettings();
 
   const [playing, setPlaying] = useState(false);
-  const [autoplayNext, setAutoplayNext] = useState(
-    Boolean(settings.autoplayNext ?? autoplayNextDefault),
-  );
+  const [autoplayNext, setAutoplayNext] = useState(Boolean(settings.autoplayNext ?? autoplayNextDefault));
   const [speed, setSpeed] = useState(1);
   const [subtitleChoice, setSubtitleChoice] = useState("off");
   const [quality, setQuality] = useState("auto");
@@ -67,7 +66,51 @@ export default function VideoPlayer({
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
   const [theater, setTheater] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
+
+  // Caption Customization State
+  const [captionsMenuOpen, setCaptionsMenuOpen] = useState(false);
+  const [captionColor, setCaptionColor] = useState(settings.captionColor || "#ffffff");
+  const [captionBg, setCaptionBg] = useState(settings.captionBg || "rgba(0,0,0,1)");
+  const [captionBgOpacity, setCaptionBgOpacity] = useState(settings.captionBgOpacity || "75%");
+  const [captionSize, setCaptionSize] = useState(settings.captionSize || "100%");
+  const [captionFont, setCaptionFont] = useState(settings.captionFont || "sans-serif");
+  const [captionEdge, setCaptionEdge] = useState(settings.captionEdge || "drop-shadow");
+
+  const updateCaptionSetting = (key, value) => {
+    if (key === 'color') setCaptionColor(value);
+    if (key === 'bg') setCaptionBg(value);
+    if (key === 'bgOp') setCaptionBgOpacity(value);
+    if (key === 'size') setCaptionSize(value);
+    if (key === 'font') setCaptionFont(value);
+    if (key === 'edge') setCaptionEdge(value);
+    
+    setSettings((current) => ({
+      ...current,
+      captionColor: key === 'color' ? value : current.captionColor,
+      captionBg: key === 'bg' ? value : current.captionBg,
+      captionBgOpacity: key === 'bgOp' ? value : current.captionBgOpacity,
+      captionSize: key === 'size' ? value : current.captionSize,
+      captionFont: key === 'font' ? value : current.captionFont,
+      captionEdge: key === 'edge' ? value : current.captionEdge,
+    }));
+  };
+
   const isEmbed = String(stream?.type || "").toLowerCase() === "embed";
+
+  const showControls = () => {
+    setControlsVisible(true);
+    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    controlsTimeoutRef.current = setTimeout(() => {
+      if (playing && !captionsMenuOpen) setControlsVisible(false);
+    }, 3000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    };
+  }, []);
 
   const applySubtitleChoice = (video, choice) => {
     if (!video?.textTracks) return;
@@ -121,7 +164,6 @@ export default function VideoPlayer({
     setCurrentTime(0);
     setDuration(0);
 
-    // Cleanup old tracks/elements from previous stream.
     const existingTracks = Array.from(video.querySelectorAll("track"));
     for (const track of existingTracks) track.remove();
 
@@ -206,9 +248,13 @@ export default function VideoPlayer({
       }
     };
 
-    const onPlay = () => setPlaying(true);
+    const onPlay = () => {
+      setPlaying(true);
+      showControls();
+    };
     const onPause = () => {
       setPlaying(false);
+      setControlsVisible(true);
       saveProgress();
     };
 
@@ -221,6 +267,7 @@ export default function VideoPlayer({
 
     const onKeyDown = (event) => {
       if (event.target && ["INPUT", "TEXTAREA", "SELECT"].includes(event.target.tagName)) return;
+      showControls();
       if (event.code === "Space") {
         event.preventDefault();
         if (video.paused) video.play().catch(() => null);
@@ -287,21 +334,53 @@ export default function VideoPlayer({
   useEffect(() => {
     if (!isEmbed || !stream?.url) return undefined;
 
-    const targetOrigin = String(stream.embedOrigin || "").trim();
+    const declaredOrigin = String(stream.embedOrigin || "").trim();
+    const getFrameOrigin = () => {
+      const frame = iframeRef.current;
+      if (!frame?.src) return "";
+      try {
+        return new URL(frame.src, window.location.origin).origin;
+      } catch {
+        return "";
+      }
+    };
+
+    const getTargetOrigin = () => {
+      const frameOrigin = getFrameOrigin();
+      if (declaredOrigin && frameOrigin && declaredOrigin === frameOrigin) return declaredOrigin;
+      if (frameOrigin) return frameOrigin;
+      return declaredOrigin || "*";
+    };
+
     const postPlayerPrefs = () => {
       const frame = iframeRef.current;
       if (!frame?.contentWindow) return;
-      frame.contentWindow.postMessage(
-        {
-          autoSkip: { intro: true, outro: true },
-          audioLanguage: stream.audioLanguageCode || "hin",
-        },
-        targetOrigin || "*",
-      );
+      try {
+        frame.contentWindow.postMessage(
+          {
+            autoSkip: { intro: true, outro: true },
+            audioLanguage: stream.audioLanguageCode || "hin",
+          },
+          getTargetOrigin(),
+        );
+      } catch {
+        // ignore cross-origin issues
+      }
     };
 
     const onMessage = (event) => {
-      if (targetOrigin && event.origin !== targetOrigin) return;
+      const frame = iframeRef.current;
+      if (frame?.contentWindow && event.source !== frame.contentWindow) return;
+
+      const frameOrigin = getFrameOrigin();
+      if (
+        declaredOrigin &&
+        event.origin !== declaredOrigin &&
+        (!frameOrigin || event.origin !== frameOrigin)
+      ) {
+        return;
+      }
+
       if (event.data === "video_playback_completed" && autoplayNextRef.current && nextEpisodeHref) {
         router.push(nextEpisodeHref);
       }
@@ -331,7 +410,8 @@ export default function VideoPlayer({
   const skip = (seconds) => {
     const video = videoRef.current;
     if (!video) return;
-    video.currentTime = Math.max(0, Math.min((video.duration || 1e9), video.currentTime + seconds));
+    video.currentTime = Math.max(0, Math.min(video.duration || 1e9, video.currentTime + seconds));
+    showControls();
   };
 
   const togglePlay = () => {
@@ -339,6 +419,7 @@ export default function VideoPlayer({
     if (!video) return;
     if (video.paused) video.play().catch(() => null);
     else video.pause();
+    showControls();
   };
 
   const setPlaybackRate = (value) => {
@@ -369,7 +450,17 @@ export default function VideoPlayer({
   const toggleMute = () => {
     const video = videoRef.current;
     if (!video) return;
-    video.muted = !video.muted;
+
+    if (video.muted || video.volume === 0 || volume === 0) {
+      video.muted = false;
+      if (video.volume === 0 || volume === 0) {
+        video.volume = 1;
+        setVolume(1);
+      }
+    } else {
+      video.muted = true;
+    }
+    
     setMuted(video.muted);
   };
 
@@ -396,193 +487,355 @@ export default function VideoPlayer({
   };
 
   return (
-    <div ref={wrapperRef} className={`space-y-2 ${theater ? "bg-black p-2" : ""}`}>
-      <div className={`relative overflow-hidden ${theater ? "rounded-none" : "rounded-xl border border-zinc-800"}`}>
-        {isEmbed ? (
-          <iframe
-            ref={iframeRef}
-            src={stream.url}
-            className="aspect-video w-full bg-black"
-            sandbox="allow-same-origin allow-scripts allow-forms allow-presentation"
-            allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
-            allowFullScreen
-            referrerPolicy="origin"
-            onLoad={() => {
-              const frame = iframeRef.current;
-              if (!frame?.contentWindow) return;
-              frame.contentWindow.postMessage(
-                {
-                  autoSkip: { intro: true, outro: true },
-                  audioLanguage: stream.audioLanguageCode || "hin",
-                },
-                stream.embedOrigin || "*",
-              );
-            }}
-          />
-        ) : (
-          <>
-            <video
-              ref={videoRef}
-              className="aspect-video w-full bg-black"
-              playsInline
-              crossOrigin="anonymous"
-              autoPlay
-            />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
-          </>
-        )}
-      </div>
+    <div
+      ref={wrapperRef}
+      className={`relative w-full flex items-center justify-center bg-black overflow-hidden group ${
+        theater ? "rounded-none" : "rounded-xl border border-zinc-800"
+      }`}
+      onMouseMove={showControls}
+      onMouseLeave={() => playing && !captionsMenuOpen && setControlsVisible(false)}
+      onClick={(e) => {
+        if (!controlsVisible) showControls();
+        else if (e.target.tagName !== "BUTTON" && e.target.tagName !== "INPUT" && e.target.tagName !== "SELECT" && !e.target.closest('.controls-panel')) {
+            togglePlay();
+        }
+      }}
+    >
+      <style jsx global>{`
+        video::cue {
+          color: ${captionColor};
+          background-color: ${captionBg === 'transparent' ? 'transparent' : `color-mix(in srgb, ${captionBg} ${captionBgOpacity}, transparent)`};
+          font-size: ${captionSize};
+          font-family: ${captionFont};
+          text-shadow: ${
+            captionEdge === "none" ? "none" :
+            captionEdge === "outline" ? "-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000" :
+            captionEdge === "raised" ? "1px 1px 0 #000, 2px 2px 0 #000" :
+            "1px 1px 2px black"
+          };
+        }
+      `}</style>
 
       {isEmbed ? (
-        <div className="glass space-y-3 rounded-xl p-3">
-          <div className="flex flex-wrap items-center gap-2">
-            {stream.audioLanguageLabel ? (
-              <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-100">
-                Audio: {stream.audioLanguageLabel}
-              </span>
-            ) : null}
-            <span className="rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1 text-xs text-zinc-300">
-              AnimeSalt Embed
-            </span>
-            <label className="ml-auto inline-flex items-center gap-2 text-xs text-zinc-300">
-              <input
-                type="checkbox"
-                checked={autoplayNext}
-                onChange={(e) => {
-                  const checked = e.target.checked;
-                  setAutoplayNext(checked);
-                  setSettings((current) => ({ ...current, autoplayNext: checked }));
-                }}
-              />
-              Autoplay next
-            </label>
-            <Button size="icon" variant="ghost" onClick={() => setTheater((v) => !v)} title="Theater mode">
-              {theater ? <Minimize size={16} /> : <Maximize size={16} />}
-            </Button>
-            <Button size="icon" variant="ghost" onClick={toggleFullscreen} title="Fullscreen">
-              <Maximize size={16} />
-            </Button>
-          </div>
-          <p className="text-xs text-zinc-500">
-            This source uses AnimeSalt&apos;s own player so its multi-language audio and auto-skip behavior stay intact.
-          </p>
-        </div>
+        <iframe
+          ref={iframeRef}
+          src={stream.url}
+          className="aspect-video w-full"
+          sandbox="allow-same-origin allow-scripts allow-forms allow-presentation"
+          allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+          referrerPolicy="origin"
+        />
       ) : (
-        <div className="glass space-y-3 rounded-xl p-3">
-          <div className="space-y-1">
-            <input
-              type="range"
-              min={0}
-              max={duration || 0}
-              step={0.1}
-              value={currentTime}
-              onChange={(e) => onSeek(e.target.value)}
-              className="w-full accent-cyan-300"
-            />
-            <div className="flex items-center justify-between text-[11px] text-zinc-400">
-              <span>{formatTime(currentTime)}</span>
-              <span>{formatTime(duration)}</span>
-            </div>
+        <video
+          ref={videoRef}
+          className="aspect-video w-full"
+          playsInline
+          crossOrigin="anonymous"
+          autoPlay
+          onClick={(e) => e.stopPropagation()} // Handle play/pause toggle at wrapper level
+        />
+      )}
+
+      {/* On-Player Overlay Controls */}
+      {!isEmbed && (
+        <div
+          className={`controls-panel absolute inset-0 flex flex-col justify-between transition-opacity duration-300 pointer-events-none ${
+            controlsVisible ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          <div className="w-full bg-gradient-to-b from-black/80 via-black/40 to-transparent p-4 flex justify-between items-start pointer-events-auto">
+               <div className="flex-1"></div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button size="icon" variant="secondary" onClick={() => skip(-10)} title="Back 10s">
-              <Rewind size={16} />
-            </Button>
-            <Button size="icon" onClick={togglePlay} title="Play/Pause">
-              {playing ? <Pause size={16} /> : <Play size={16} />}
-            </Button>
-            <Button size="icon" variant="secondary" onClick={() => skip(10)} title="Forward 10s">
-              <FastForward size={16} />
-            </Button>
-
-            <Button size="icon" variant="ghost" onClick={toggleMute} title="Mute">
-              {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-            </Button>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={muted ? 0 : volume}
-              onChange={(e) => onVolume(e.target.value)}
-              className="w-24 accent-cyan-300"
-            />
-
-            <select
-              value={speed}
-              onChange={(e) => setPlaybackRate(Number(e.target.value))}
-              className="rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
-              title="Playback speed"
+          {/* Center play button */}
+          <div className="flex items-center justify-center flex-1 pointer-events-auto">
+            <button
+              onClick={(e) => { e.stopPropagation(); togglePlay(); }}
+              className="bg-black/50 hover:bg-cyan-500/80 text-white rounded-full p-4 backdrop-blur-md transition-all drop-shadow-2xl"
             >
-              {[0.75, 1, 1.25, 1.5, 2].map((rate) => (
-                <option key={rate} value={rate}>
-                  {rate}x
-                </option>
-              ))}
-            </select>
-
-            <div className="inline-flex items-center gap-1 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1">
-              <Captions size={14} className="text-zinc-400" />
-              <select
-                value={subtitleChoice}
-                onChange={(e) => setSubtitleChoice(e.target.value)}
-                className="bg-transparent text-xs outline-none"
-              >
-                <option value="off">Off</option>
-                {(stream?.subtitles || []).map((sub, idx) => (
-                  <option key={`${sub.lang || "sub"}-${idx}`} value={String(idx)}>
-                    {sub.label || sub.lang || `Subtitle ${idx + 1}`}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {qualityOptions.length ? (
-              <select
-                value={quality}
-                onChange={(e) => setQuality(e.target.value)}
-                className="rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
-                title="Video quality"
-              >
-                <option value="auto">Auto</option>
-                {qualityOptions.map((item) => (
-                  <option key={item.index} value={item.index}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            ) : null}
-
-            <label className="ml-auto inline-flex items-center gap-2 text-xs text-zinc-300">
-              <input
-                type="checkbox"
-                checked={autoplayNext}
-                onChange={(e) => {
-                  const checked = e.target.checked;
-                  setAutoplayNext(checked);
-                  setSettings((current) => ({ ...current, autoplayNext: checked }));
-                }}
-              />
-              Autoplay next
-            </label>
-
-            <Button size="icon" variant="ghost" onClick={() => setTheater((v) => !v)} title="Theater mode">
-              {theater ? <Minimize size={16} /> : <Maximize size={16} />}
-            </Button>
-            <Button size="icon" variant="ghost" onClick={togglePiP} title="Picture in Picture">
-              <PictureInPicture2 size={16} />
-            </Button>
-            <Button size="icon" variant="ghost" onClick={toggleFullscreen} title="Fullscreen">
-              <Maximize size={16} />
-            </Button>
+              {playing ? <Pause size={36} fill="currentColor" /> : <Play size={36} fill="currentColor" />}
+            </button>
           </div>
 
-          <div className="h-1 w-full overflow-hidden rounded-full bg-zinc-800">
-            <div className="h-full rounded-full bg-cyan-300 transition-all" style={{ width: `${progressPercent}%` }} />
+          {/* Bottom Controls Bar */}
+          <div className="w-full bg-gradient-to-t from-black/90 via-black/50 to-transparent pt-12 pb-4 px-4 pointer-events-auto">
+            <div className="space-y-2">
+              {/* Progress Bar */}
+              <div className="group/progress relative h-1.5 w-full bg-white/20 rounded-full cursor-pointer overflow-hidden backdrop-blur-sm self-end">
+                 <input
+                  type="range"
+                  min={0}
+                  max={duration || 0}
+                  step={0.1}
+                  value={currentTime}
+                  onChange={(e) => onSeek(e.target.value)}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                />
+                <div
+                  className="absolute top-0 left-0 h-full bg-cyan-400 rounded-full pointer-events-none transition-all duration-75"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+
+              {/* Controls Row */}
+              <div className="flex items-center justify-between pt-2">
+                <div className="flex items-center gap-4">
+                  <button onClick={(e) => { e.stopPropagation(); togglePlay(); }} className="text-white hover:text-cyan-400 transition">
+                    {playing ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); skip(-10); }} className="text-white hover:text-cyan-400 transition" title="Back 10s">
+                    <Rewind size={18} />
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); skip(10); }} className="text-white hover:text-cyan-400 transition" title="Forward 10s">
+                    <FastForward size={18} />
+                  </button>
+                  
+                  {/* Volume Control */}
+                  <div className="group/volume flex items-center gap-2">
+                    <button onClick={(e) => { e.stopPropagation(); toggleMute(); }} className="text-white hover:text-cyan-400 transition" title="Mute/Unmute">
+                      {muted || volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
+                    </button>
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      value={muted ? 0 : volume}
+                      onChange={(e) => onVolume(e.target.value)}
+                      className="w-0 opacity-0 group-hover/volume:w-20 group-hover/volume:opacity-100 transition-all duration-300 accent-cyan-400"
+                    />
+                  </div>
+                  
+                  <div className="text-xs text-zinc-300 font-medium">
+                    {formatTime(currentTime)} <span className="text-zinc-500 mx-1">/</span> {formatTime(duration)}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-5">
+                     {/* Subtitles/Captions Toggle (Unified Menu) */}
+                     <div className="relative flex items-center">
+                         <button 
+                             onClick={(e) => {
+                                 e.stopPropagation();
+                                 setCaptionsMenuOpen(!captionsMenuOpen);
+                             }}
+                             className={`transition hover:scale-105 ${captionsMenuOpen || subtitleChoice !== "off" ? "text-cyan-400" : "text-white hover:text-cyan-400"}`}
+                             title="Subtitles & Settings"
+                         >
+                             <Captions size={20} />
+                         </button>
+                     </div>
+
+                    {/* Playback speed */}
+                    <div className="relative flex items-center">
+                        <span className="text-xs font-semibold text-white">{speed}x</span>
+                        <select
+                            value={speed}
+                            onChange={(e) => { e.stopPropagation(); setPlaybackRate(Number(e.target.value)); }}
+                            className="absolute inset-0 opacity-0 cursor-pointer"
+                            title="Speed"
+                        >
+                        {[0.5, 0.75, 1, 1.25, 1.5, 2].map((rate) => (
+                            <option key={rate} value={rate}>{rate}x</option>
+                        ))}
+                        </select>
+                    </div>
+
+                    {/* Quality */}
+                    {qualityOptions.length > 0 && (
+                        <div className="relative flex items-center">
+                        <span className="text-xs font-semibold text-white">{quality === 'auto' ? 'Auto' : qualityOptions.find(q => String(q.index) === String(quality))?.label}</span>
+                        <select
+                            value={quality}
+                            onChange={(e) => { e.stopPropagation(); setQuality(e.target.value); }}
+                            className="absolute inset-0 opacity-0 cursor-pointer"
+                            title="Quality"
+                        >
+                            <option value="auto">Auto</option>
+                            {qualityOptions.map((item) => (
+                            <option key={item.index} value={item.index}>{item.label}</option>
+                            ))}
+                        </select>
+                        </div>
+                    )}
+
+                    {/* Picture in Picture */}
+                    <button onClick={(e) => { e.stopPropagation(); togglePiP(); }} className="text-white hover:text-cyan-400 transition" title="PiP">
+                        <PictureInPicture2 size={18} />
+                    </button>
+
+                    {/* Theater */}
+                    <button onClick={(e) => { e.stopPropagation(); setTheater((v) => !v); }} className="text-white hover:text-cyan-400 transition" title="Theater Mode">
+                        {theater ? <Minimize size={18} /> : <Maximize size={18} />}
+                    </button>
+
+                    {/* Fullscreen */}
+                    <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }} className="text-white hover:text-cyan-400 transition" title="Fullscreen">
+                        <Maximize size={20} />
+                    </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
+
+      {/* Unified Caption & Settings Panel Overlay */}
+      {captionsMenuOpen && (
+         <div 
+             className="absolute right-4 bottom-24 bg-zinc-900/95 border border-zinc-700/80 backdrop-blur-2xl p-5 rounded-2xl shadow-2xl z-50 w-80 controls-panel text-white pointer-events-auto transform transition-all max-h-[350px] overflow-y-auto custom-scrollbar"
+             onClick={(e) => e.stopPropagation()}
+         >
+             <div className="flex items-center justify-between mb-5 pb-3 border-b border-zinc-800">
+                 <h3 className="font-semibold text-sm flex items-center gap-2">
+                    <Captions size={16} className="text-cyan-400"/> Subtitles & Settings
+                 </h3>
+                 <button onClick={() => setCaptionsMenuOpen(false)} className="text-zinc-400 hover:text-white transition"><X size={16}/></button>
+             </div>
+             
+             <div className="space-y-6">
+                 {/* Track Selection */}
+                 <div className="space-y-2.5">
+                     <label className="text-[10px] text-zinc-400 uppercase tracking-widest font-bold">Select Track</label>
+                     <div className="grid grid-cols-2 gap-2">
+                        <button 
+                            onClick={() => setSubtitleChoice("off")}
+                            className={`px-3 py-2 text-xs rounded-lg border transition ${subtitleChoice === "off" ? "bg-cyan-500/10 border-cyan-400 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.1)]" : "bg-zinc-800/40 border-transparent text-zinc-400 hover:bg-zinc-700"}`}
+                        >
+                            Off
+                        </button>
+                        {(stream?.subtitles || []).map((sub, idx) => {
+                            const active = subtitleChoice === String(idx);
+                             return (
+                                <button 
+                                    key={idx}
+                                    onClick={() => setSubtitleChoice(String(idx))}
+                                    className={`px-3 py-2 text-xs rounded-lg border text-left truncate transition ${active ? "bg-cyan-500/10 border-cyan-400 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.1)]" : "bg-zinc-800/40 border-transparent text-zinc-400 hover:bg-zinc-700"}`}
+                                    title={sub.label || sub.lang}
+                                >
+                                    {sub.label || sub.lang || `Track ${idx + 1}`}
+                                </button>
+                             );
+                        })}
+                     </div>
+                 </div>
+
+                 {/* Customization Options */}
+                 {subtitleChoice !== "off" && (
+                    <div className="space-y-5 pt-4 border-t border-zinc-800/60">
+                        <label className="text-[10px] text-zinc-400 uppercase tracking-widest font-bold block mb-1">Appearance</label>
+                        
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <span className="text-xs text-zinc-300">Text Color</span>
+                            </div>
+                            <div className="flex gap-2.5">
+                                {['#ffffff', '#facc15', '#38bdf8', '#4ade80', '#fb7185'].map(c => (
+                                    <button 
+                                        key={c}
+                                        onClick={() => updateCaptionSetting('color', c)} 
+                                        className={`w-6 h-6 rounded-full border-2 transition-transform ${captionColor === c ? 'border-white scale-110 shadow-[0_0_8px_rgba(255,255,255,0.3)]' : 'border-transparent opacity-70 hover:opacity-100'}`}
+                                        style={{ backgroundColor: c }}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <span className="text-xs text-zinc-300">Background Color</span>
+                            <div className="grid grid-cols-4 gap-2">
+                                {[
+                                    { name: 'Dark', val: 'rgba(0,0,0,1)' },
+                                    { name: 'Red', val: 'rgba(185,28,28,1)' },
+                                    { name: 'Blue', val: 'rgba(3,105,161,1)' },
+                                    { name: 'None', val: 'transparent' }
+                                ].map(bg => (
+                                    <button
+                                        key={bg.name}
+                                        onClick={() => updateCaptionSetting('bg', bg.val)}
+                                        className={`px-2 py-1.5 text-xs rounded-md transition ${captionBg === bg.val ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50' : 'bg-zinc-800 text-zinc-400 border border-transparent hover:bg-zinc-700'}`}
+                                    >
+                                        {bg.name}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <div className="flex justify-between">
+                                <span className="text-xs text-zinc-300">Bg Opacity</span>
+                                <span className="text-xs font-mono text-cyan-400">{captionBgOpacity}</span>
+                            </div>
+                            <input 
+                                type="range"
+                                min="0" max="100" step="5"
+                                value={parseInt(captionBgOpacity) || 75}
+                                onChange={(e) => updateCaptionSetting('bgOp', `${e.target.value}%`)}
+                                className="w-full accent-cyan-400 h-1.5 bg-zinc-800 rounded-lg outline-none appearance-none cursor-pointer"
+                                disabled={captionBg === 'transparent'}
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <span className="text-xs text-zinc-300">Font Family</span>
+                            <div className="grid grid-cols-2 gap-2">
+                                {[
+                                    { name: 'Sans Serif', val: 'sans-serif' },
+                                    { name: 'Serif', val: 'serif' },
+                                    { name: 'Monospace', val: 'monospace' },
+                                    { name: 'Casual', val: 'cursive' }
+                                ].map(f => (
+                                    <button
+                                        key={f.name}
+                                        onClick={() => updateCaptionSetting('font', f.val)}
+                                        className={`px-2 py-1.5 text-xs rounded-md transition truncate ${captionFont === f.val ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50' : 'bg-zinc-800 text-zinc-400 border border-transparent hover:bg-zinc-700'}`}
+                                        style={{ fontFamily: f.val }}
+                                    >
+                                        {f.name}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <span className="text-xs text-zinc-300">Text Edge</span>
+                            <div className="grid grid-cols-2 gap-2">
+                                {[
+                                    { name: 'Shadow', val: 'drop-shadow' },
+                                    { name: 'Outline', val: 'outline' },
+                                    { name: 'Raised', val: 'raised' },
+                                    { name: 'None', val: 'none' }
+                                ].map(e => (
+                                    <button
+                                        key={e.name}
+                                        onClick={() => updateCaptionSetting('edge', e.val)}
+                                        className={`px-2 py-1.5 text-xs rounded-md transition ${captionEdge === e.val ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50' : 'bg-zinc-800 text-zinc-400 border border-transparent hover:bg-zinc-700'}`}
+                                    >
+                                        {e.name}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <div className="flex justify-between">
+                                <span className="text-xs text-zinc-300">Text Size</span>
+                                <span className="text-xs font-mono text-cyan-400">{captionSize}</span>
+                            </div>
+                            <input 
+                                type="range"
+                                min="50" max="300" step="10"
+                                value={parseInt(captionSize) || 100}
+                                onChange={(e) => updateCaptionSetting('size', `${e.target.value}%`)}
+                                className="w-full accent-cyan-400 h-1.5 bg-zinc-800 rounded-lg outline-none appearance-none cursor-pointer"
+                            />
+                        </div>
+                    </div>
+                 )}
+             </div>
+         </div>
+      )}
+
     </div>
   );
 }

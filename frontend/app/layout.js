@@ -5,6 +5,9 @@ import ClientSettingsProvider from "../components/ClientSettingsProvider";
 export const metadata = {
   title: "MEMO",
   description: "Personal local-first anime web app",
+  icons: {
+    icon: "/favicon.svg?v=newskull",
+  },
 };
 
 export default function RootLayout({ children }) {

@@ -32,9 +32,12 @@ const PLATFORM_LABELS = {
   "amazon-prime-video": "Prime Video",
   "disney-hotstar": "Disney+ Hotstar",
   "disney-plus-hotstar": "Disney+ Hotstar",
+  "disney-channel": "Disney Channel",
   hotstar: "Disney+ Hotstar",
   disney: "Disney+",
   muse: "Muse",
+  hungama: "Hungama TV",
+  "hungama-tv": "Hungama TV",
   "toonami-india": "Toonami India",
   "cartoon-network": "Cartoon Network",
 };
@@ -44,6 +47,37 @@ const STATUS_LABELS = {
   completed: "Completed",
   releasing: "Releasing",
 };
+
+const DISCOVER_LANGUAGE_OPTIONS = [
+  "hindi",
+  "tamil",
+  "telugu",
+  "bengali",
+  "malayalam",
+  "kannada",
+  "english",
+  "japanese",
+];
+
+const DISCOVER_PLATFORM_OPTIONS = [
+  "netflix",
+  "crunchyroll",
+  "cartoon-network",
+  "disney-hotstar",
+  "prime-video",
+  "sony-yay",
+  "hungama-tv",
+  "disney-channel",
+];
+
+const DISCOVER_SECTION_PRESETS = [
+  { id: "hindi-picks", title: "Hindi Picks", language: "hindi" },
+  { id: "tamil-dubs", title: "Tamil Dubs", language: "tamil" },
+  { id: "netflix", title: "Netflix", platform: "netflix" },
+  { id: "crunchyroll", title: "Crunchyroll", platform: "crunchyroll" },
+  { id: "cartoon-network", title: "Cartoon Network", platform: "cartoon-network" },
+  { id: "disney-hotstar", title: "Disney+ Hotstar", platform: "disney-hotstar" },
+];
 
 function decodeHtmlEntities(value) {
   return String(value || "")
@@ -77,6 +111,17 @@ function uniqueStrings(values) {
         .filter(Boolean),
     ),
   );
+}
+
+function cleanSourcePath(value) {
+  return String(value || "")
+    .replace(BASE_URL, "")
+    .replace(/^\/+/, "")
+    .replace(/\/+$/, "");
+}
+
+function kindToFormat(kind) {
+  return kind === "movie" ? "MOVIE" : "TV";
 }
 
 function getAnimeNames(anime) {
@@ -113,6 +158,67 @@ function mapPlatformLabel(slug) {
 function mapStatusLabel(slug) {
   const key = String(slug || "").trim().toLowerCase();
   return STATUS_LABELS[key] || titleCaseLabel(key);
+}
+
+function normalizeLanguageSlug(value) {
+  const key = String(value || "").trim().toLowerCase();
+  if (Object.hasOwn(LANGUAGE_MAP, key)) return key;
+
+  const match = Object.entries(LANGUAGE_MAP).find(
+    ([, meta]) => meta.label.toLowerCase() === key,
+  );
+  return match?.[0] || "";
+}
+
+function normalizePlatformSlug(value) {
+  const key = String(value || "").trim().toLowerCase();
+  if (Object.hasOwn(PLATFORM_LABELS, key)) return key;
+
+  const match = Object.entries(PLATFORM_LABELS).find(
+    ([, label]) => label.toLowerCase() === key,
+  );
+  return match?.[0] || "";
+}
+
+function matchesFilters(entry, options = {}) {
+  const requestedLanguage = normalizeLanguageSlug(options.language);
+  const requestedPlatform = normalizePlatformSlug(options.platform);
+  const requestedKind = String(options.kind || "").trim().toLowerCase();
+
+  if (requestedLanguage && !entry.languages.includes(requestedLanguage)) return false;
+  if (requestedPlatform && !entry.platforms.includes(requestedPlatform)) return false;
+  if (requestedKind && requestedKind !== "all" && entry.kind !== requestedKind) return false;
+  return true;
+}
+
+function mapEntryToAnime(entry) {
+  return {
+    id: entry.id,
+    source: "animesalt",
+    provider: "animesalt",
+    title: entry.title,
+    titleEnglish: entry.title,
+    titleRomaji: entry.title,
+    description:
+      [
+        entry.platforms.length ? entry.platforms.map(mapPlatformLabel).join(" • ") : "",
+        entry.languages.length
+          ? entry.languages.map((slug) => LANGUAGE_MAP[slug]?.label || titleCaseLabel(slug)).join(" • ")
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" · ") || "",
+    coverImage: entry.coverImage || null,
+    languageSlugs: entry.languages,
+    platformSlugs: entry.platforms,
+    statusSlugs: entry.statuses,
+    languages: entry.languages.map((slug) => LANGUAGE_MAP[slug]?.label || titleCaseLabel(slug)),
+    platforms: entry.platforms.map(mapPlatformLabel),
+    statuses: entry.statuses.map(mapStatusLabel),
+    kind: entry.kind,
+    format: kindToFormat(entry.kind),
+    href: entry.href,
+  };
 }
 
 function buildQueryVariants(...values) {
@@ -162,37 +268,188 @@ function parseCategorySlugs(className) {
   );
 }
 
+function pushParsedResult(results, seenIds, className, title, image, href) {
+  const cleanHref = String(href || "").trim();
+  if (!cleanHref) return;
+
+  const id = cleanSourcePath(cleanHref);
+  if (!id || seenIds.has(id)) return;
+
+  const categories = parseCategorySlugs(className);
+  const languages = categories.filter((slug) => Object.hasOwn(LANGUAGE_MAP, slug));
+  const platforms = categories.filter((slug) => Object.hasOwn(PLATFORM_LABELS, slug));
+  const statuses = categories.filter((slug) => Object.hasOwn(STATUS_LABELS, slug));
+  const kind = cleanHref.includes("/movies/") ? "movie" : "series";
+
+  results.push({
+    id,
+    title: stripTags(title),
+    href: cleanHref.startsWith("http") ? cleanHref : `${BASE_URL}/${id}/`,
+    kind,
+    categories,
+    languages,
+    platforms,
+    statuses,
+    coverImage: String(image || "").startsWith("//") ? `https:${String(image || "")}` : String(image || ""),
+    provider: "animesalt",
+  });
+  seenIds.add(id);
+}
+
+function extractAttribute(block, attributeNames) {
+  for (const attributeName of attributeNames) {
+    const pattern = new RegExp(`${attributeName}="([^"]+)"`, "i");
+    const match = String(block || "").match(pattern);
+    if (match?.[1]) return match[1];
+  }
+  return "";
+}
+
 function extractSearchResults(html) {
   const results = [];
-  const pattern =
-    /<li[^>]+class="([^"]+)"[^>]*>[\s\S]*?<h2[^>]*>([\s\S]*?)<\/h2>[\s\S]*?<img[^>]+(?:data-src|src)="([^"]+)"[\s\S]*?<a href="([^"]+)" class="lnk-blk"><\/a>/gi;
+  const seenIds = new Set();
 
-  for (const match of html.matchAll(pattern)) {
-    const className = match[1] || "";
-    const href = String(match[4] || "").trim();
-    if (!href) continue;
+  const blocks = String(html || "").match(/<li[^>]+class="[^"]+"[^>]*>[\s\S]*?<\/li>/gi) || [];
+  for (const block of blocks) {
+    if (!/class="[^"]*\b(?:movies|series)\b/i.test(block) || !/class="lnk-blk"/i.test(block)) continue;
 
-    const categories = parseCategorySlugs(className);
-    const languages = categories.filter((slug) => Object.hasOwn(LANGUAGE_MAP, slug));
-    const platforms = categories.filter((slug) => Object.hasOwn(PLATFORM_LABELS, slug));
-    const statuses = categories.filter((slug) => Object.hasOwn(STATUS_LABELS, slug));
-    const kind = href.includes("/movies/") ? "movie" : "series";
+    const className = block.match(/<li[^>]+class="([^"]+)"/i)?.[1] || "";
+    const title = block.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i)?.[1] || "";
+    const href = block.match(/<a href="([^"]+)" class="lnk-blk"><\/a>/i)?.[1] || "";
+    const figureBlock = block.match(/<figure[\s\S]*?<\/figure>/i)?.[0] || block;
+    const image = extractAttribute(figureBlock, ["data-src", "data-lazy-src", "data-srcset", "src"]);
 
-    results.push({
-      id: href.replace(`${BASE_URL}/`, "").replace(/\/+$/, ""),
-      title: stripTags(match[2]),
-      href,
-      kind,
-      categories,
-      languages,
-      platforms,
-      statuses,
-      coverImage: String(match[3] || "").startsWith("//") ? `https:${String(match[3] || "")}` : String(match[3] || ""),
-      provider: "animesalt",
-    });
+    pushParsedResult(results, seenIds, className, title, image.split(/\s+/)[0], href);
   }
 
   return results;
+}
+
+function extractMetaContent(html, key) {
+  const pattern = new RegExp(
+    `<meta[^>]+(?:property|name)=["']${key}["'][^>]+content=["']([^"']+)["'][^>]*>`,
+    "i",
+  );
+  const match = String(html || "").match(pattern);
+  return match?.[1] ? decodeHtmlEntities(match[1]) : "";
+}
+
+function extractFirstHeading(html) {
+  const match = String(html || "").match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+  return match?.[1] ? stripTags(match[1]) : "";
+}
+
+function extractKnownCategorySlugs(html) {
+  const matches = Array.from(String(html || "").matchAll(/\bcategory-([a-z0-9-]+)/gi), (match) => match[1]);
+  const unique = uniqueStrings(matches);
+  return {
+    languages: unique.filter((slug) => Object.hasOwn(LANGUAGE_MAP, slug)),
+    platforms: unique.filter((slug) => Object.hasOwn(PLATFORM_LABELS, slug)),
+    statuses: unique.filter((slug) => Object.hasOwn(STATUS_LABELS, slug)),
+  };
+}
+
+function extractCategoryLinks(html, segment) {
+  return uniqueStrings(
+    Array.from(
+      String(html || "").matchAll(new RegExp(`href="${BASE_URL}/category/${segment}/([^"/]+)/"`, "gi")),
+      (match) => match[1],
+    ),
+  );
+}
+
+function extractAnimeFromPage(id, html) {
+  const url = `${BASE_URL}/${cleanSourcePath(id)}/`;
+  const kind = url.includes("/movies/") ? "movie" : "series";
+  const ogTitle = extractMetaContent(html, "og:title");
+  const headingTitle = extractFirstHeading(html);
+  const cleanTitle = (ogTitle || headingTitle || titleCaseLabel(cleanSourcePath(id).split("/").pop()))
+    .replace(/\s*-\s*Watch Now[\s\S]*$/i, "")
+    .replace(/\s*-\s*Anime Salt[\s\S]*$/i, "")
+    .trim();
+  const description = stripTags(
+    extractMetaContent(html, "og:description") || extractMetaContent(html, "description"),
+  );
+  const coverImage = extractMetaContent(html, "og:image");
+  const known = extractKnownCategorySlugs(html);
+  const fallbackLanguages = extractCategoryLinks(html, "language");
+  const fallbackPlatforms = extractCategoryLinks(html, "network");
+  const fallbackStatuses = extractCategoryLinks(html, "status");
+  const languages = known.languages.length ? known.languages : fallbackLanguages;
+  const platforms = known.platforms.length ? known.platforms : fallbackPlatforms;
+  const statuses = known.statuses.length ? known.statuses : fallbackStatuses;
+  const episodesMatch = String(html || "").match(/(\d+)\s+Episodes/i);
+  const yearMatch = String(html || "").match(/\b(19|20)\d{2}\b/);
+
+  return {
+    id: cleanSourcePath(id),
+    href: url,
+    source: "animesalt",
+    provider: "animesalt",
+    title: cleanTitle || "Untitled",
+    titleEnglish: cleanTitle || "Untitled",
+    titleRomaji: cleanTitle || "Untitled",
+    description,
+    coverImage: coverImage || null,
+    episodes: episodesMatch?.[1] ? Number(episodesMatch[1]) : null,
+    seasonYear: yearMatch?.[0] ? Number(yearMatch[0]) : null,
+    format: kindToFormat(kind),
+    status: statuses[0] ? mapStatusLabel(statuses[0]) : null,
+    kind,
+    languageSlugs: languages,
+    platformSlugs: platforms,
+    statusSlugs: statuses,
+    languages: languages.map((slug) => LANGUAGE_MAP[slug]?.label || titleCaseLabel(slug)),
+    platforms: platforms.map(mapPlatformLabel),
+    statuses: statuses.map(mapStatusLabel),
+  };
+}
+
+async function fetchArchiveHtml(slug, page = 1) {
+  const cleanSlug = String(slug || "").trim().toLowerCase();
+  if (!cleanSlug) throw new Error("AnimeSalt browse slug is required.");
+
+  const base = `${BASE_URL}/category/${encodeURIComponent(cleanSlug)}/`;
+  const urls = page > 1 ? [`${base}page/${page}/`, base] : [base];
+  let lastError = null;
+
+  for (const url of urls) {
+    try {
+      return await fetchHtml(url);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error(`AnimeSalt category '${cleanSlug}' is unavailable.`);
+}
+
+async function browseAnimeSalt(options = {}) {
+  const language = normalizeLanguageSlug(options.language);
+  const platform = normalizePlatformSlug(options.platform);
+  const page = Math.max(1, Number(options.page || 1) || 1);
+
+  if (!language && !platform) {
+    throw new Error("AnimeSalt browse requires a language or platform filter.");
+  }
+
+  const html = await fetchArchiveHtml(platform || language, page);
+  return extractSearchResults(html)
+    .filter((entry) => matchesFilters(entry, options))
+    .map(mapEntryToAnime);
+}
+
+function getBrowseFilters() {
+  return {
+    languages: DISCOVER_LANGUAGE_OPTIONS.map((slug) => ({
+      value: slug,
+      label: LANGUAGE_MAP[slug]?.label || titleCaseLabel(slug),
+    })),
+    platforms: DISCOVER_PLATFORM_OPTIONS.map((slug) => ({
+      value: slug,
+      label: mapPlatformLabel(slug),
+    })),
+  };
 }
 
 function scoreShowMatch(entry, anime) {
@@ -216,6 +473,19 @@ function scoreShowMatch(entry, anime) {
 }
 
 async function resolveShow(anime) {
+  if (anime?.provider === "animesalt") {
+    const href = anime?.href ? String(anime.href) : `${BASE_URL}/${cleanSourcePath(anime?.id)}/`;
+    return {
+      id: cleanSourcePath(anime?.id || href),
+      href,
+      title: anime?.title || "Untitled",
+      kind: String(anime?.kind || "").trim().toLowerCase() || (String(anime?.format || "").toUpperCase() === "MOVIE" ? "movie" : "series"),
+      languages: uniqueStrings(anime?.languageSlugs || []),
+      platforms: uniqueStrings(anime?.platformSlugs || []),
+      statuses: uniqueStrings(anime?.statusSlugs || []),
+    };
+  }
+
   const names = buildQueryVariants(...getAnimeNames(anime));
   const byHref = new Map();
   const failures = [];
@@ -341,30 +611,66 @@ function getLanguageLabel(language) {
 }
 
 function extractPrimaryEmbedUrl(html) {
-  const iframeMatch = String(html).match(
-    /<iframe[^>]+src="(https?:\/\/[^"]*as-cdn[^"]+)"[^>]*><\/iframe>/i,
-  );
-  if (!iframeMatch?.[1]) {
+  const iframeMatch = String(html).match(/<iframe[^>]+(?:src|data-src)="([^"]+)"[^>]*><\/iframe>/i);
+  const rawUrl = String(iframeMatch?.[1] || "").trim();
+  const embedUrl = rawUrl
+    ? rawUrl.startsWith("http")
+      ? rawUrl
+      : `${BASE_URL}${rawUrl.startsWith("/") ? rawUrl : `/${rawUrl}`}`
+    : "";
+
+  if (!embedUrl) {
     throw new Error("AnimeSalt embed player was not found for this episode.");
   }
-  return iframeMatch[1];
+  return embedUrl;
+}
+
+function buildDirectMovieEpisode(show, activeTranslation) {
+  return {
+    id: `animesalt|${show.id}|__direct__|${activeTranslation}|1`,
+    number: 1,
+    title: show.kind === "movie" ? "Movie" : "Play",
+  };
 }
 
 module.exports = {
   name: "animesalt",
 
-  async search(query) {
+  async search(query, options = {}) {
     const html = await fetchHtml(`${BASE_URL}/?s=${encodeURIComponent(query)}`);
-    return extractSearchResults(html).map((entry) => ({
-      id: entry.id,
-      title: entry.title,
-      titleEnglish: entry.title,
-      titleRomaji: entry.title,
-      provider: "animesalt",
-      coverImage: entry.coverImage || null,
-      languages: entry.languages.map((slug) => LANGUAGE_MAP[slug]?.label || titleCaseLabel(slug)),
-      platforms: entry.platforms.map(mapPlatformLabel),
-    }));
+    return extractSearchResults(html)
+      .filter((entry) => matchesFilters(entry, options))
+      .map(mapEntryToAnime);
+  },
+
+  async browse(options = {}) {
+    return browseAnimeSalt(options);
+  },
+
+  async getDiscover() {
+    const settled = await Promise.allSettled(
+      DISCOVER_SECTION_PRESETS.map(async (preset) => ({
+        id: preset.id,
+        title: preset.title,
+        language: preset.language || "",
+        platform: preset.platform || "",
+        items: await browseAnimeSalt({ language: preset.language, platform: preset.platform }),
+      })),
+    );
+
+    return {
+      filters: getBrowseFilters(),
+      sections: settled
+        .filter((result) => result.status === "fulfilled")
+        .map((result) => result.value)
+        .filter((section) => Array.isArray(section.items) && section.items.length),
+    };
+  },
+
+  async getAnimeById(animeId) {
+    const cleanId = cleanSourcePath(animeId);
+    const html = await fetchHtml(`${BASE_URL}/${cleanId}/`);
+    return extractAnimeFromPage(cleanId, html);
   },
 
   async getEpisodes(anime, options = {}) {
@@ -375,6 +681,15 @@ module.exports = {
     const activeTranslation = pickLanguageOption(translationOptions, options.translationType);
 
     if (!episodeUrls.length) {
+      if (show.kind === "movie") {
+        return {
+          translationOptions,
+          activeTranslation,
+          optionLabel: "Audio Language",
+          sourceMeta: buildSourceMeta(show),
+          episodes: [buildDirectMovieEpisode(show, activeTranslation)],
+        };
+      }
       throw new Error("AnimeSalt episode list was empty for this title.");
     }
 
@@ -401,7 +716,10 @@ module.exports = {
       throw new Error("Invalid AnimeSalt episode id.");
     }
 
-    const episodeUrl = `${BASE_URL}/episode/${parsed.episodeSlug}/`;
+    const episodeUrl =
+      parsed.episodeSlug === "__direct__"
+        ? `${BASE_URL}/${cleanSourcePath(parsed.seriesSlug)}/`
+        : `${BASE_URL}/episode/${parsed.episodeSlug}/`;
     const html = await fetchHtml(episodeUrl);
     const embedUrl = extractPrimaryEmbedUrl(html);
 

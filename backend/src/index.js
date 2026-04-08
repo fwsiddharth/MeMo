@@ -19,7 +19,6 @@ const {
   listFavorites,
   getSettings,
   updateSettings,
-  getDefaultSource,
   listTrackers,
   connectTracker,
   disconnectTracker,
@@ -39,6 +38,15 @@ const FRONTEND_ORIGINS = String(process.env.FRONTEND_ORIGINS || "")
   .split(",")
   .map((value) => value.trim())
   .filter(Boolean);
+const ALLOW_VERCEL_PREVIEWS = String(process.env.ALLOW_VERCEL_PREVIEWS || "").trim() === "1";
+const MEDIA_PROXY_ALLOWED_HOSTS = String(process.env.MEDIA_PROXY_ALLOWED_HOSTS || "")
+  .split(",")
+  .map((value) => value.trim().toLowerCase())
+  .filter(Boolean);
+const MEDIA_PROXY_STRICT_MODE =
+  String(
+    process.env.MEDIA_PROXY_STRICT_MODE || (process.env.NODE_ENV === "production" ? "1" : ""),
+  ).trim() === "1";
 
 const app = Fastify({
   logger: true,
@@ -67,7 +75,6 @@ const favoriteSchema = z.object({
 });
 
 const settingsSchema = z.object({
-  defaultSource: z.string().optional(),
   sidebarCompact: z.boolean().optional(),
   autoplayNext: z.boolean().optional(),
   preferredSubLang: z.string().optional(),
@@ -86,6 +93,84 @@ function normalizeUrl(url) {
   if (value.startsWith("//")) return `https:${value}`;
   if (/^https?:\/\//i.test(value)) return value;
   return null;
+}
+
+function isPrivateHostname(hostname) {
+  const host = String(hostname || "").toLowerCase().trim();
+  if (!host) return true;
+  if (host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]") return true;
+  if (host.startsWith("10.")) return true;
+  if (host.startsWith("192.168.")) return true;
+  if (host.startsWith("169.254.")) return true;
+  if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(host)) return true;
+  if (host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe80:")) return true;
+  return false;
+}
+
+function isAllowedMediaHost(hostname) {
+  const host = String(hostname || "").toLowerCase().trim();
+  if (!host || isPrivateHostname(host)) return false;
+
+  if (!MEDIA_PROXY_ALLOWED_HOSTS.length) return !MEDIA_PROXY_STRICT_MODE;
+
+  return MEDIA_PROXY_ALLOWED_HOSTS.some((allowed) => {
+    const value = String(allowed || "").toLowerCase().trim();
+    if (!value) return false;
+    if (value.startsWith("*.")) {
+      const suffix = value.slice(1);
+      return host.endsWith(suffix);
+    }
+    return host === value;
+  });
+}
+
+function validateUrlHost(url, kind = "URL") {
+  try {
+    const parsed = new URL(String(url || ""));
+    if (!isAllowedMediaHost(parsed.hostname)) {
+      throw new Error(`${kind} host is not allowed.`);
+    }
+    return parsed;
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(`Invalid ${kind.toLowerCase()}.`);
+    }
+    throw error;
+  }
+}
+
+async function fetchWithValidatedRedirects(targetUrl, options = {}, maxRedirects = 5) {
+  let currentUrl = targetUrl;
+
+  for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
+    const response = await fetch(currentUrl, {
+      ...options,
+      redirect: "manual",
+    });
+
+    if (response.status >= 300 && response.status < 400) {
+      if (redirectCount >= maxRedirects) {
+        throw new Error("Too many upstream redirects.");
+      }
+
+      const location = response.headers.get("location");
+      if (!location) {
+        throw new Error("Upstream redirect missing location header.");
+      }
+
+      const nextUrl = new URL(location, currentUrl).toString();
+      validateUrlHost(nextUrl, "Redirect URL");
+      currentUrl = nextUrl;
+      continue;
+    }
+
+    return {
+      response,
+      finalUrl: currentUrl,
+    };
+  }
+
+  throw new Error("Unable to resolve upstream request.");
 }
 
 function toAbsoluteUrl(raw, base) {
@@ -180,7 +265,13 @@ function detectContentType(url, upstreamType) {
   return upstreamType || "application/octet-stream";
 }
 
-function rewritePlaylist(text, playlistUrl, backendBase) {
+function rewritePlaylist(text, playlistUrl, backendBase, proxyReferer, proxyOrigin) {
+  // Use the original stream referer/origin when available so that upstream
+  // CDNs (KAA / krussdomi) receive the correct credentials on every segment
+  // request instead of the segment URL's own origin which is often different.
+  const segmentReferer = proxyReferer || playlistUrl;
+  const segmentOrigin = proxyOrigin || "";
+
   const lines = String(text).split(/\r?\n/);
   return lines
     .map((line) => {
@@ -193,8 +284,8 @@ function rewritePlaylist(text, playlistUrl, backendBase) {
             try {
               const abs = toAbsoluteUrl(uri, playlistUrl);
               const proxied = buildMediaProxyUrl(backendBase, abs, {
-                referer: playlistUrl,
-                origin: new URL(abs).origin,
+                referer: segmentReferer,
+                origin: segmentOrigin || new URL(abs).origin,
               });
               return `URI="${proxied}"`;
             } catch {
@@ -208,8 +299,8 @@ function rewritePlaylist(text, playlistUrl, backendBase) {
       try {
         const abs = toAbsoluteUrl(trimmed, playlistUrl);
         return buildMediaProxyUrl(backendBase, abs, {
-          referer: playlistUrl,
-          origin: new URL(abs).origin,
+          referer: segmentReferer,
+          origin: segmentOrigin || new URL(abs).origin,
         });
       } catch {
         return line;
@@ -232,7 +323,7 @@ app.register(cors, {
         parsed.hostname === "127.0.0.1" ||
         parsed.hostname === "[::1]";
       const isConfigured = FRONTEND_ORIGINS.includes(origin);
-      const isVercel = parsed.hostname.endsWith(".vercel.app");
+      const isVercel = ALLOW_VERCEL_PREVIEWS && parsed.hostname.endsWith(".vercel.app");
       callback(null, isLocal || isConfigured || isVercel);
     } catch {
       callback(null, false);
@@ -282,6 +373,38 @@ app.get("/api/home/spotlight", async (_request, reply) => {
 
 app.get("/api/search", async (request, reply) => {
   const q = String(request.query?.q || "").trim();
+  const source = String(request.query?.source || "global").trim().toLowerCase();
+  const language = String(request.query?.language || "").trim().toLowerCase();
+  const platform = String(request.query?.platform || "").trim().toLowerCase();
+  const kind = String(request.query?.kind || "").trim().toLowerCase();
+  const page = Math.max(1, Number(request.query?.page || 1) || 1);
+
+  if (source === "animesalt") {
+    const ext = getExtension("animesalt");
+    if (!ext) {
+      return reply.code(404).send({ error: "AnimeSalt source is unavailable." });
+    }
+
+    if (q.length < 2 && !language && !platform && !kind) {
+      return reply.code(400).send({ error: "Query must be at least 2 characters, or choose an AnimeSalt filter." });
+    }
+
+    try {
+      const results =
+        q.length >= 2
+          ? await ext.search(q, { language, platform, kind, page })
+          : await ext.browse({ language, platform, kind, page });
+
+      return {
+        results,
+        source: "animesalt",
+      };
+    } catch (error) {
+      requestLogWarn("AnimeSalt search failed", error);
+      return reply.code(502).send({ error: "AnimeSalt search failed." });
+    }
+  }
+
   if (q.length < 2) {
     return reply.code(400).send({ error: "Query must be at least 2 characters." });
   }
@@ -301,11 +424,32 @@ app.get("/api/search", async (request, reply) => {
   }
 });
 
+app.get("/api/discover/:source", async (request, reply) => {
+  const source = String(request.params.source || "").trim().toLowerCase();
+  const ext = getExtension(source);
+
+  if (!ext || typeof ext.getDiscover !== "function") {
+    return reply.code(404).send({ error: "Discover feed not available for this source." });
+  }
+
+  try {
+    const payload = await ext.getDiscover();
+    return {
+      source: ext.name,
+      ...payload,
+    };
+  } catch (error) {
+    requestLogWarn("Source discover failed", error);
+    return reply.code(502).send({ error: "Failed to load source discover feed." });
+  }
+});
+
 app.get("/api/anime/:id", async (request, reply) => {
-  const animeId = String(request.params.id);
+  const animeId = decodeURIComponent(String(request.params.id));
   const provider = String(request.query?.provider || "anilist");
   const user = await getUserFromRequest(request, { optional: true });
-  const source = String(request.query?.source || (await getDefaultSource(user?.id || "local-default")));
+  const providerExt = getExtension(provider);
+  const source = String(request.query?.source || (providerExt ? provider : listExtensions()[0] || "allanime"));
   const requestedTranslation = String(request.query?.translation || "").trim().toLowerCase();
   const ext = getExtension(source);
 
@@ -314,8 +458,16 @@ app.get("/api/anime/:id", async (request, reply) => {
   }
 
   try {
+    const fetchStart = Date.now();
     const anime =
-      provider === "kitsu" ? await getAnimeByIdFallback(animeId) : await getAnimeById(animeId);
+      providerExt && typeof providerExt.getAnimeById === "function"
+        ? await providerExt.getAnimeById(animeId)
+        : provider === "kitsu"
+          ? await getAnimeByIdFallback(animeId)
+          : await getAnimeById(animeId);
+          
+    console.log(`[PERF - Backend API] Fetched anime detail from AniList in ${Date.now() - fetchStart}ms`);
+
     if (!anime) {
       return reply.code(404).send({ error: "Anime not found." });
     }
@@ -325,26 +477,43 @@ app.get("/api/anime/:id", async (request, reply) => {
     let activeTranslation = "";
     let optionLabel = "";
     let sourceMeta = null;
-    try {
-      const listing = normalizeEpisodeListing(
-        await ext.getEpisodes(anime, {
-          translationType: requestedTranslation,
-        }),
-      );
-      episodes = listing.episodes;
-      translationOptions = listing.translationOptions;
-      activeTranslation = listing.activeTranslation || requestedTranslation;
-      optionLabel = listing.optionLabel;
-      sourceMeta = listing.sourceMeta;
-    } catch (error) {
-      requestLogWarn("Extension getEpisodes failed", error);
+
+    if (!request.query?.source) {
+      console.log(`[PERF - Backend API] Bypassing scrape, returning dummy DB map...`);
+      const count = typeof anime.episodes === 'number' && anime.episodes > 0 
+        ? anime.episodes 
+        : (anime?.nextAiringEpisode?.episode ? anime.nextAiringEpisode.episode - 1 : 12);
+        
+      episodes = Array.from({length: Math.max(1, count)}, (_, i) => ({
+        id: `dummy_${i + 1}`,
+        number: i + 1,
+        title: `Episode ${i + 1}`
+      }));
+    } else {
+      console.log(`[PERF - Backend API] Scraping episodes via ${ext.name}...`);
+      const scrapeStart = Date.now();
+      try {
+        const listing = normalizeEpisodeListing(
+          await ext.getEpisodes(anime, {
+            translationType: requestedTranslation,
+          }),
+        );
+        episodes = listing.episodes;
+        translationOptions = listing.translationOptions;
+        activeTranslation = listing.activeTranslation || requestedTranslation;
+        optionLabel = listing.optionLabel;
+        sourceMeta = listing.sourceMeta;
+      } catch (error) {
+        requestLogWarn("Extension getEpisodes failed", error);
+      }
+      console.log(`[PERF - Backend API] Scrape complete in ${Date.now() - scrapeStart}ms`);
     }
 
     return {
       anime,
       episodes,
       source: ext.name,
-      extensions: listExtensions(),
+      extensions: providerExt ? [providerExt.name] : listExtensions(),
       translationOptions,
       activeTranslation,
       optionLabel,
@@ -359,28 +528,29 @@ app.get("/api/anime/:id", async (request, reply) => {
 });
 
 app.get("/api/stream", async (request, reply) => {
-  const animeId = String(request.query?.animeId || "");
+  const animeId = decodeURIComponent(String(request.query?.animeId || ""));
   const episodeId = String(request.query?.episodeId || "");
   const provider = String(request.query?.provider || "anilist");
   const requestedSource = String(request.query?.source || "");
-  const user = await getUserFromRequest(request, { optional: true });
-  const source = inferSourceFromEpisodeId(
-    episodeId,
-    requestedSource || (await getDefaultSource(user?.id || "local-default")),
-  );
+  const source = requestedSource || inferSourceFromEpisodeId(episodeId, listExtensions()[0] || "allanime");
 
   if (!animeId || !episodeId) {
     return reply.code(400).send({ error: "animeId and episodeId are required." });
   }
 
   const ext = getExtension(source);
+  const providerExt = getExtension(provider);
   if (!ext) {
     return reply.code(404).send({ error: "Extension not found.", extensions: listExtensions() });
   }
 
   try {
     const anime =
-      provider === "kitsu" ? await getAnimeByIdFallback(animeId) : await getAnimeById(animeId);
+      providerExt && typeof providerExt.getAnimeById === "function"
+        ? await providerExt.getAnimeById(animeId)
+        : provider === "kitsu"
+          ? await getAnimeByIdFallback(animeId)
+          : await getAnimeById(animeId);
     const stream = await ext.getStream(anime, episodeId);
     if (!stream?.url) {
       return reply.code(404).send({ error: "Stream not found." });
@@ -433,6 +603,28 @@ app.get("/api/media", async (request, reply) => {
     return reply.code(400).send({ error: "Invalid media url." });
   }
 
+  try {
+    validateUrlHost(target, "Media URL");
+  } catch {
+    return reply.code(403).send({ error: "Media host is not allowed." });
+  }
+
+  if (referer) {
+    try {
+      validateUrlHost(referer, "Referer URL");
+    } catch {
+      return reply.code(403).send({ error: "Referer host is not allowed." });
+    }
+  }
+
+  if (origin) {
+    try {
+      validateUrlHost(origin, "Origin URL");
+    } catch {
+      return reply.code(403).send({ error: "Origin host is not allowed." });
+    }
+  }
+
   const headers = {
     Accept: "*/*",
     "User-Agent":
@@ -442,11 +634,29 @@ app.get("/api/media", async (request, reply) => {
   if (origin) headers.Origin = origin;
   if (request.headers.range) headers.Range = request.headers.range;
 
-  const upstream = await fetch(target, {
-    method: "GET",
-    headers,
-    redirect: "follow",
-  });
+  // Abort if upstream takes too long — prevents indefinite hangs that
+  // cause hls.js to stall on the frontend.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+
+  let upstream = null;
+  let finalUrl = target;
+  try {
+    const resolved = await fetchWithValidatedRedirects(target, {
+      method: "GET",
+      headers,
+      signal: controller.signal,
+    });
+    upstream = resolved.response;
+    finalUrl = resolved.finalUrl;
+  } catch (error) {
+    clearTimeout(timeout);
+    requestLogWarn("Media fetch failed", error);
+    const msg = error?.name === "AbortError" ? "Upstream request timed out." : (error?.message || "Media fetch failed.");
+    return reply.code(502).send({ error: msg });
+  }
+
+  clearTimeout(timeout);
 
   if (upstream.status >= 400) {
     const msg = await upstream.text();
@@ -460,24 +670,28 @@ app.get("/api/media", async (request, reply) => {
   const contentType = upstream.headers.get("content-type") || "";
   const backendBase = getRequestBaseUrl(request);
 
-  if (isPlaylist(contentType, target)) {
+  // CORS — required so hls.js on the frontend can read the response.
+  reply.header("Access-Control-Allow-Origin", "*");
+  reply.header("Access-Control-Expose-Headers", "Content-Length, Content-Range, Accept-Ranges");
+
+  if (isPlaylist(contentType, finalUrl)) {
     const text = await upstream.text();
-    const rewritten = rewritePlaylist(text, target, backendBase);
+    // Propagate the original referer/origin through to segment URLs so that
+    // CDNs like krussdomi.com receive the correct headers on every request.
+    const rewritten = rewritePlaylist(text, finalUrl, backendBase, referer, origin);
     reply
       .code(upstream.status)
       .header("Content-Type", "application/x-mpegURL; charset=utf-8")
       .header("Cache-Control", "no-store")
-      .header("Access-Control-Allow-Origin", "*")
       .send(rewritten);
     return;
   }
 
   const raw = Buffer.from(await upstream.arrayBuffer());
-  const responseType = detectContentType(target, contentType);
+  const responseType = detectContentType(finalUrl, contentType);
   reply.code(upstream.status);
   reply.header("Content-Type", responseType);
   reply.header("Cache-Control", "no-store");
-  reply.header("Access-Control-Allow-Origin", "*");
   const contentRange = upstream.headers.get("content-range");
   const acceptRanges = upstream.headers.get("accept-ranges");
   if (contentRange) reply.header("Content-Range", contentRange);
@@ -535,7 +749,7 @@ app.get("/api/history/:animeId", async (request, reply) => {
   } catch {
     return reply.code(401).send({ error: "Unauthorized" });
   }
-  const animeId = String(request.params.animeId);
+  const animeId = decodeURIComponent(String(request.params.animeId));
   const provider = String(request.query?.provider || "anilist");
   return {
     items: await getAnimeHistory(user.id, animeId, provider),
@@ -586,7 +800,7 @@ app.get("/api/favorites/:animeId", async (request, reply) => {
   } catch {
     return reply.code(401).send({ error: "Unauthorized" });
   }
-  const animeId = String(request.params.animeId || "");
+  const animeId = decodeURIComponent(String(request.params.animeId || ""));
   const provider = String(request.query?.provider || "anilist");
   return { favorited: await isFavorite(animeId, provider, user.id) };
 });
@@ -614,7 +828,7 @@ app.delete("/api/favorites/:animeId", async (request, reply) => {
   } catch {
     return reply.code(401).send({ error: "Unauthorized" });
   }
-  const animeId = String(request.params.animeId || "");
+  const animeId = decodeURIComponent(String(request.params.animeId || ""));
   const provider = String(request.query?.provider || "anilist");
   await removeFavorite(animeId, provider, user.id);
   return { ok: true };
@@ -703,6 +917,12 @@ function requestLogWarn(message, error) {
 }
 
 async function start() {
+  if (MEDIA_PROXY_STRICT_MODE && !MEDIA_PROXY_ALLOWED_HOSTS.length) {
+    app.log.warn({
+      message:
+        "MEDIA_PROXY_STRICT_MODE is enabled but MEDIA_PROXY_ALLOWED_HOSTS is empty. /api/media will reject all hosts until allowlist is configured.",
+    });
+  }
   await initDb();
   loadExtensions();
   await app.listen({ port: PORT, host: HOST });

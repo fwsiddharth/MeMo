@@ -128,17 +128,22 @@ function scoreShowMatch(show, anime) {
   return best;
 }
 
-async function gojoRequestJson(url, { referer } = {}) {
+async function gojoRequestJson(url, { referer, timeoutMs = 10000, retries = 2 } = {}) {
   let lastError = null;
 
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
     try {
       const response = await fetch(url, {
         headers: buildHeaders(referer),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
 
       if (!response.ok) {
-        if (RETRYABLE_STATUSES.has(response.status) && attempt < 2) {
+        if (RETRYABLE_STATUSES.has(response.status) && attempt < retries) {
           await sleep(300 * (attempt + 1));
           continue;
         }
@@ -146,11 +151,11 @@ async function gojoRequestJson(url, { referer } = {}) {
       }
 
       const text = await response.text();
-      const parsed = JSON.parse(text);
-      return parsed;
+      return JSON.parse(text);
     } catch (error) {
+      clearTimeout(timeout);
       lastError = error;
-      if (attempt < 2) {
+      if (attempt < retries) {
         await sleep(300 * (attempt + 1));
         continue;
       }
@@ -420,7 +425,8 @@ async function resolveStream(animeId, episodeNumber, language) {
     for (const serverId of serverIds) {
       try {
         const url = `${API_BASE}/oppai/${animeId}/${episodeNumber}?server=${encodeURIComponent(serverId)}&source_type=${encodeURIComponent(currentLanguage)}`;
-        const payload = await gojoRequestJson(url, { referer });
+        // 5s timeout and 0 retries so that when a server is down, we immediately move to the next one
+        const payload = await gojoRequestJson(url, { referer, timeoutMs: 5000, retries: 0 });
         return mapStreamPayload(payload, animeId, serverId);
       } catch (error) {
         failures.push(`${serverId}/${currentLanguage}: ${error.message}`);

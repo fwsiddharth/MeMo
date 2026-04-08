@@ -358,13 +358,23 @@ function evaluateNuxtState(scriptSource) {
 }
 
 async function scrapeShowPage(showId) {
-  const response = await fetch(`${ALLMANGA_BASE}/bangumi/${encodeURIComponent(showId)}`, {
-    headers: {
-      Accept: "text/html,application/xhtml+xml",
-      "User-Agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-    },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+
+  let response;
+  try {
+    response = await fetch(`${ALLMANGA_BASE}/bangumi/${encodeURIComponent(showId)}`, {
+      signal: controller.signal,
+      headers: {
+        Accept: "text/html,application/xhtml+xml",
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      },
+    });
+    clearTimeout(timeout);
+  } catch (err) {
+    throw new Error(`AllManga page timeout or fetch failed: ${err.message}`);
+  }
 
   if (!response.ok) {
     throw new Error(`AllManga page HTTP ${response.status}`);

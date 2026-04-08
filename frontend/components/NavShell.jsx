@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Search, UserCircle2 } from "lucide-react";
+import { Layers3, Search, UserCircle2 } from "lucide-react";
 
 const navItems = [
   { href: "/", label: "Home" },
   { href: "/search", label: "Search" },
+  { href: "/library", label: "Library" },
 ];
 
 function isActive(pathname, href) {
@@ -54,6 +55,19 @@ export default function NavShell({ children }) {
               title="Search"
             >
               <Search size={18} />
+            </Link>
+
+            <Link
+              href="/animesalt"
+              className={`flex h-10 w-10 items-center justify-center rounded-full transition ${
+                isActive(pathname, "/animesalt")
+                  ? "bg-cyan-300 text-zinc-900"
+                  : "text-zinc-300 hover:bg-zinc-800 hover:text-white"
+              }`}
+              aria-label="Open AnimeSalt hub"
+              title="AnimeSalt"
+            >
+              <Layers3 size={18} />
             </Link>
 
             <Link
