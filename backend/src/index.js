@@ -35,9 +35,14 @@ const { getUserFromRequest } = require("./auth");
 
 const PORT = Number(process.env.PORT || 4000);
 const HOST = process.env.HOST || "127.0.0.1";
+const FRONTEND_ORIGINS = String(process.env.FRONTEND_ORIGINS || "")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
 
 const app = Fastify({
   logger: true,
+  trustProxy: true,
 });
 
 const progressSchema = z.object({
@@ -95,6 +100,18 @@ function buildMediaProxyUrl(baseUrl, targetUrl, opts = {}) {
   if (opts.referer) params.set("referer", opts.referer);
   if (opts.origin) params.set("origin", opts.origin);
   return `${baseUrl}/api/media?${params.toString()}`;
+}
+
+function getRequestBaseUrl(request) {
+  const forwardedProto = String(request.headers["x-forwarded-proto"] || "")
+    .split(",")[0]
+    .trim();
+  const forwardedHost = String(request.headers["x-forwarded-host"] || "")
+    .split(",")[0]
+    .trim();
+  const protocol = forwardedProto || request.protocol || "http";
+  const host = forwardedHost || request.headers.host || `localhost:${PORT}`;
+  return `${protocol}://${host}`;
 }
 
 function inferSourceFromEpisodeId(episodeId, fallbackSource) {
@@ -214,7 +231,9 @@ app.register(cors, {
         parsed.hostname === "localhost" ||
         parsed.hostname === "127.0.0.1" ||
         parsed.hostname === "[::1]";
-      callback(null, isLocal);
+      const isConfigured = FRONTEND_ORIGINS.includes(origin);
+      const isVercel = parsed.hostname.endsWith(".vercel.app");
+      callback(null, isLocal || isConfigured || isVercel);
     } catch {
       callback(null, false);
     }
@@ -377,7 +396,7 @@ app.get("/api/stream", async (request, reply) => {
       };
     }
 
-    const backendBase = `${request.protocol || "http"}://${request.headers.host || `localhost:${PORT}`}`;
+    const backendBase = getRequestBaseUrl(request);
     const referer = stream?.headers?.Referer || stream?.headers?.referer || "";
     const origin = stream?.headers?.Origin || stream?.headers?.origin || "";
 
@@ -439,7 +458,7 @@ app.get("/api/media", async (request, reply) => {
   }
 
   const contentType = upstream.headers.get("content-type") || "";
-  const backendBase = `${request.protocol || "http"}://${request.headers.host || `localhost:${PORT}`}`;
+  const backendBase = getRequestBaseUrl(request);
 
   if (isPlaylist(contentType, target)) {
     const text = await upstream.text();
