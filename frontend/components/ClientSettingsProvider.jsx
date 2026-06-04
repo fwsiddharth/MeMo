@@ -8,6 +8,7 @@ const defaultSettings = {
   sidebarCompact: true,
   preferredSubLang: "en",
   uiAnimations: true,
+  themeMode: "system",
 };
 
 const ClientSettingsContext = createContext({
@@ -24,6 +25,7 @@ function persistSettings(settings) {
   window.localStorage.setItem("memo_ui_animations", settings.uiAnimations ? "1" : "0");
   window.localStorage.setItem("memo_autoplay_next", settings.autoplayNext ? "1" : "0");
   window.localStorage.setItem("memo_preferred_sub_lang", settings.preferredSubLang || "en");
+  window.localStorage.setItem("memo_theme_mode", settings.themeMode || "system");
 }
 
 function readLocalSettings() {
@@ -33,13 +35,21 @@ function readLocalSettings() {
   const uiAnimations = window.localStorage.getItem("memo_ui_animations");
   const autoplayNext = window.localStorage.getItem("memo_autoplay_next");
   const preferredSubLang = window.localStorage.getItem("memo_preferred_sub_lang");
+  const themeMode = window.localStorage.getItem("memo_theme_mode");
 
   return {
     ...(sidebarCompact === null ? {} : { sidebarCompact: sidebarCompact === "1" }),
     ...(uiAnimations === null ? {} : { uiAnimations: uiAnimations === "1" }),
     ...(autoplayNext === null ? {} : { autoplayNext: autoplayNext === "1" }),
     ...(preferredSubLang ? { preferredSubLang } : {}),
+    ...(themeMode ? { themeMode } : {}),
   };
+}
+
+function resolveTheme(themeMode) {
+  if (themeMode === "light" || themeMode === "dark") return themeMode;
+  if (typeof window === "undefined") return "light";
+  return window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ? "dark" : "light";
 }
 
 export default function ClientSettingsProvider({ children }) {
@@ -74,6 +84,27 @@ export default function ClientSettingsProvider({ children }) {
       setSettingsState((current) => ({ ...current, ...localSettings }));
     }
   }, []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+
+    const applyTheme = () => {
+      const theme = resolveTheme(settings.themeMode);
+      document.documentElement.dataset.theme = theme;
+      document.documentElement.style.colorScheme = theme;
+    };
+
+    applyTheme();
+
+    if (settings.themeMode !== "system") return undefined;
+
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const listener = () => applyTheme();
+    media.addEventListener?.("change", listener);
+    return () => {
+      media.removeEventListener?.("change", listener);
+    };
+  }, [settings.themeMode]);
 
   useEffect(() => {
     refreshSettings().catch(() => {
