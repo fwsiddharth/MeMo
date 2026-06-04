@@ -3,6 +3,7 @@ import VideoPlayer from "../../../../components/VideoPlayer";
 import EpisodeSidebar from "../../../../components/EpisodeSidebar";
 import PlayerControlBar from "../../../../components/PlayerControlBar";
 import FavoriteButton from "../../../../components/FavoriteButton";
+import RoutePendingLink from "../../../../components/RoutePendingLink";
 import { apiFetch, stripHtml } from "../../../../lib/api";
 import { requireServerSession } from "../../../../lib/supabase/server";
 
@@ -458,7 +459,7 @@ export default async function PlayerPage({ params, searchParams }) {
                         const isActive = sourceName === requestedSource && (!activeTranslation || activeTranslation === "sub");
 
                         return (
-                          <Link
+                          <RoutePendingLink
                             key={`sub-${sourceName}`}
                             href={subHref}
                             className={`rounded-lg px-5 py-1.5 text-[13px] font-semibold transition ${
@@ -466,9 +467,11 @@ export default async function PlayerPage({ params, searchParams }) {
                                 ? "bg-red-600 text-white shadow-md shadow-red-900/30"
                                 : "bg-zinc-700/80 text-zinc-300 hover:bg-zinc-600"
                             }`}
+                            variant="inline"
+                            loadingLabel="Loading server"
                           >
                             {displayNames[sourceName] || sourceName}
-                          </Link>
+                          </RoutePendingLink>
                         );
                       })
                     ) : (
@@ -528,7 +531,7 @@ export default async function PlayerPage({ params, searchParams }) {
                         };
 
                         return (
-                          <Link
+                          <RoutePendingLink
                             key={`dub-${sourceName}`}
                             href={dubHref}
                             className={`rounded-lg px-5 py-1.5 text-[13px] font-semibold transition ${
@@ -536,9 +539,11 @@ export default async function PlayerPage({ params, searchParams }) {
                                 ? "bg-amber-500 text-black shadow-md shadow-amber-900/40"
                                 : "bg-zinc-700/80 text-zinc-300 hover:bg-zinc-600"
                             }`}
+                            variant="inline"
+                            loadingLabel="Loading server"
                           >
                             {displayNames[sourceName] || sourceName}
-                          </Link>
+                          </RoutePendingLink>
                         );
                       })
                     ) : (

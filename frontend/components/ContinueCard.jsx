@@ -1,11 +1,11 @@
-import Link from "next/link";
+import RoutePendingLink from "./RoutePendingLink";
 
 export default function ContinueCard({ item, className = "" }) {
   const progress = item?.duration > 0 ? Math.min(100, Math.max(0, (item.position / item.duration) * 100)) : 0;
   const encodedAnimeId = encodeURIComponent(String(item?.animeId || ""));
 
   return (
-    <Link
+    <RoutePendingLink
       href={{
         pathname: `/player/${encodedAnimeId}/${encodeURIComponent(item.episodeId)}`,
         query: {
@@ -18,6 +18,8 @@ export default function ContinueCard({ item, className = "" }) {
         },
       }}
       className={`glass flex items-center gap-3 rounded-xl p-3 transition hover:border-zinc-500 ${className}`.trim()}
+      variant="overlay"
+      loadingLabel="Opening episode"
     >
       {item.animeCover ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -39,6 +41,6 @@ export default function ContinueCard({ item, className = "" }) {
           <div className="h-full rounded-full bg-cyan-300" style={{ width: `${progress}%` }} />
         </div>
       </div>
-    </Link>
+    </RoutePendingLink>
   );
 }

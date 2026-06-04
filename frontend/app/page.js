@@ -3,6 +3,7 @@ import { apiFetch } from "../lib/api";
 import ContinueCard from "../components/ContinueCard";
 import AnimatedSection from "../components/AnimatedSection";
 import HomeSpotlight from "../components/HomeSpotlight";
+import RoutePendingLink from "../components/RoutePendingLink";
 import { requireServerSession } from "../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -35,10 +36,12 @@ function ListPanel({ title, items = [], limit = 8, fillHeight = false }) {
       {items.length ? (
         <div className="space-y-2.5">
           {items.slice(0, limit).map((anime, index) => (
-            <Link
+            <RoutePendingLink
               key={`${title}-${anime.provider || "anilist"}-${anime.id}`}
               href={animeHref(anime)}
               className="group flex items-center gap-3 rounded-2xl border border-transparent bg-zinc-950/50 p-2.5 transition hover:border-zinc-700 hover:bg-zinc-950"
+              variant="overlay"
+              loadingLabel="Opening anime"
             >
               <div className="w-7 shrink-0 text-right text-sm font-semibold text-zinc-600 transition group-hover:text-white">
                 {String(index + 1).padStart(2, "0")}
@@ -53,7 +56,7 @@ function ListPanel({ title, items = [], limit = 8, fillHeight = false }) {
                 <p className="line-clamp-1 text-sm font-medium text-zinc-100">{anime.title}</p>
                 <p className="line-clamp-1 text-xs text-zinc-500">{metaText(anime) || "Unknown format"}</p>
               </div>
-            </Link>
+            </RoutePendingLink>
           ))}
         </div>
       ) : (
@@ -77,10 +80,12 @@ function PosterRow({ title, items = [], limit = 6 }) {
       {items.length ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
           {items.slice(0, limit).map((anime) => (
-            <Link
+            <RoutePendingLink
               key={`${title}-${anime.provider || "anilist"}-${anime.id}`}
               href={animeHref(anime)}
               className="group glass overflow-hidden rounded-[1.45rem] transition hover:border-zinc-500"
+              variant="overlay"
+              loadingLabel="Opening anime"
             >
               <div className="aspect-[3/4] overflow-hidden bg-zinc-900">
                 {anime.coverImage ? (
@@ -97,7 +102,7 @@ function PosterRow({ title, items = [], limit = 6 }) {
                 <p className="line-clamp-2 text-sm font-medium text-white">{anime.title}</p>
                 <p className="text-xs text-zinc-500">{metaText(anime) || "Unknown format"}</p>
               </div>
-            </Link>
+            </RoutePendingLink>
           ))}
         </div>
       ) : (

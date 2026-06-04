@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { stripHtml } from "../lib/api";
+import RoutePendingLink from "./RoutePendingLink";
 
 function animeHref(anime) {
   const encodedAnimeId = encodeURIComponent(String(anime?.id || ""));
@@ -98,12 +99,14 @@ export default function HomeSpotlight({ items = [] }) {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Link
+            <RoutePendingLink
               href={animeHref(active)}
               className="rounded-2xl bg-cyan-300 px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-cyan-200"
+              variant="inline"
+              loadingLabel="Opening anime"
             >
               Watch now
-            </Link>
+            </RoutePendingLink>
             <Link
               href="/search"
               className="rounded-2xl border border-white/12 bg-black/20 px-5 py-3 text-sm font-medium text-zinc-100 transition hover:border-white/25"

@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { stripHtml } from "../lib/api";
+import RoutePendingLink from "./RoutePendingLink";
 
 export default function AnimeCard({ anime }) {
   const encodedAnimeId = encodeURIComponent(String(anime?.id || ""));
@@ -19,9 +19,11 @@ export default function AnimeCard({ anime }) {
       .join(" · ");
 
   return (
-    <Link
+    <RoutePendingLink
       href={href}
       className="glass group overflow-hidden rounded-2xl transition hover:border-zinc-500"
+      variant="overlay"
+      loadingLabel="Opening anime"
     >
       <div className="aspect-[3/4] w-full overflow-hidden bg-zinc-800">
         {anime.coverImage ? (
@@ -48,6 +50,6 @@ export default function AnimeCard({ anime }) {
           {anime.episodes ? `${anime.episodes} eps` : "Unknown episodes"}
         </p>
       </div>
-    </Link>
+    </RoutePendingLink>
   );
 }
