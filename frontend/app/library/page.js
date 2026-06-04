@@ -64,7 +64,7 @@ export default async function LibraryPage() {
                   item.provider && item.provider !== "anilist"
                     ? {
                         pathname: `/anime/${encodeURIComponent(item.animeId)}`,
-                        query: { provider: item.provider, source: item.source || item.provider },
+                        query: { provider: item.provider },
                       }
                     : `/anime/${encodeURIComponent(item.animeId)}`
                 }

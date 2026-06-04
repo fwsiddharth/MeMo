@@ -5,7 +5,6 @@ require("dotenv").config({ path: path.join(__dirname, "..", ".env.local") });
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 
 const SQLITE_PATH = path.join(__dirname, "..", "memo.db");
-const FALLBACK_USER_ID = "local-default";
 
 function getSupabaseClient() {
   const url = process.env.SUPABASE_URL;
@@ -57,15 +56,36 @@ async function upsertAll(client, table, rows, onConflict) {
   }
 }
 
+async function getFallbackUserId(client) {
+  const explicit = String(process.env.MIGRATION_USER_ID || "").trim();
+  if (explicit) return explicit;
+
+  const { data, error } = await client.auth.admin.listUsers({ perPage: 1 });
+  if (error) {
+    throw error;
+  }
+
+  const userId = data?.users?.[0]?.id;
+  if (!userId) {
+    throw new Error(
+      "No auth.users row was found to receive migrated rows without user_id. Set MIGRATION_USER_ID to a real Supabase auth user id.",
+    );
+  }
+
+  return userId;
+}
+
 async function main() {
   const client = getSupabaseClient();
   const db = new Database(SQLITE_PATH, { readonly: true });
+  const fallbackUserId = await getFallbackUserId(client);
 
-  if (tableExists(db, "watch_history")) {
-    const hasUserId = hasColumn(db, "watch_history", "user_id");
-    const rows = db.prepare("SELECT * FROM watch_history").all();
+  if (tableExists(db, "history") || tableExists(db, "watch_history")) {
+    const tableName = tableExists(db, "history") ? "history" : "watch_history";
+    const hasUserId = hasColumn(db, tableName, "user_id");
+    const rows = db.prepare(`SELECT * FROM ${tableName}`).all();
     const mapped = rows.map((row) => ({
-      user_id: row.user_id || FALLBACK_USER_ID,
+      user_id: row.user_id || fallbackUserId,
       anime_id: row.anime_id,
       provider: row.provider || "anilist",
       episode_id: row.episode_id,
@@ -77,23 +97,23 @@ async function main() {
       anime_cover: row.anime_cover || null,
       episode_number: Number.isFinite(Number(row.episode_number)) ? Number(row.episode_number) : null,
       episode_title: row.episode_title || null,
-      updated_at: Number(row.updated_at || Date.now()),
+      updated_at: row.updated_at || new Date().toISOString(),
     }));
     if (mapped.length) {
-      await upsertAll(client, "watch_history", mapped, "user_id,anime_id,provider,episode_id,source");
+      await upsertAll(client, "history", mapped, "user_id,anime_id,episode_id");
     }
-    console.log(`migrated watch_history: ${mapped.length} rows${hasUserId ? "" : " (assigned to local-default)"}`);
+    console.log(`migrated ${tableName}: ${mapped.length} rows${hasUserId ? "" : " (assigned to fallback auth user)"}`);
   }
 
   if (tableExists(db, "favorites")) {
     const rows = db.prepare("SELECT * FROM favorites").all();
     const mapped = rows.map((row) => ({
-      user_id: row.user_id || FALLBACK_USER_ID,
+      user_id: row.user_id || fallbackUserId,
       anime_id: row.anime_id,
       provider: row.provider || "anilist",
       anime_title: row.anime_title || null,
       anime_cover: row.anime_cover || null,
-      added_at: Number(row.added_at || Date.now()),
+      created_at: row.created_at || row.added_at || new Date().toISOString(),
     }));
     if (mapped.length) {
       await upsertAll(client, "favorites", mapped, "user_id,anime_id,provider");
@@ -101,28 +121,66 @@ async function main() {
     console.log(`migrated favorites: ${mapped.length} rows`);
   }
 
-  if (tableExists(db, "app_settings")) {
-    const rows = db.prepare("SELECT * FROM app_settings").all();
-    const mapped = rows.map((row) => ({
-      user_id: row.user_id || FALLBACK_USER_ID,
-      key: row.key,
-      value: String(row.value ?? ""),
-    }));
-    if (mapped.length) {
-      await upsertAll(client, "app_settings", mapped, "user_id,key");
+  if (tableExists(db, "user_settings") || tableExists(db, "app_settings")) {
+    const tableName = tableExists(db, "user_settings") ? "user_settings" : "app_settings";
+    const rows = db.prepare(`SELECT * FROM ${tableName}`).all();
+    const byUser = new Map();
+
+    for (const row of rows) {
+      const userId = row.user_id || fallbackUserId;
+      const current = byUser.get(userId) || {
+        sidebarCompact: true,
+        autoplayNext: true,
+        preferredSubLang: "en",
+        uiAnimations: true,
+      };
+
+      if (tableName === "user_settings" && row.settings && typeof row.settings === "object") {
+        byUser.set(userId, { ...current, ...row.settings });
+        continue;
+      }
+
+      switch (String(row.key || "").trim()) {
+        case "sidebar_compact":
+          current.sidebarCompact = row.value === "1";
+          break;
+        case "autoplay_next":
+          current.autoplayNext = row.value === "1";
+          break;
+        case "preferred_sub_lang":
+          current.preferredSubLang = String(row.value || "en");
+          break;
+        case "ui_animations":
+          current.uiAnimations = row.value === "1";
+          break;
+        default:
+          break;
+      }
+
+      byUser.set(userId, current);
     }
-    console.log(`migrated app_settings: ${mapped.length} rows`);
+
+    const mapped = Array.from(byUser.entries()).map(([user_id, settings]) => ({
+      user_id,
+      settings,
+      updated_at: new Date().toISOString(),
+    }));
+
+    if (mapped.length) {
+      await upsertAll(client, "user_settings", mapped, "user_id");
+    }
+    console.log(`migrated ${tableName}: ${mapped.length} rows`);
   }
 
   if (tableExists(db, "trackers")) {
     const rows = db.prepare("SELECT * FROM trackers").all();
     const mapped = rows.map((row) => ({
-      user_id: row.user_id || FALLBACK_USER_ID,
+      user_id: row.user_id || fallbackUserId,
       provider: row.provider,
       connected: Boolean(row.connected),
       username: row.username || null,
       token: row.token || null,
-      updated_at: Number(row.updated_at || Date.now()),
+      updated_at: row.updated_at || new Date().toISOString(),
     }));
     if (mapped.length) {
       await upsertAll(client, "trackers", mapped, "user_id,provider");

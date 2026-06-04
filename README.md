@@ -50,7 +50,7 @@ Backend runs on `http://localhost:4000`.
 
 - AniList is primary metadata source, Kitsu is fallback.
 - Streaming is extension-based (`allanime`, `allmanga-web`, `gojowtf`, `kaa-manifest`, `animesalt`).
-- User data is persisted in Supabase tables (`watch_history`, `favorites`, `app_settings`, `trackers`).
+- User data is persisted in Supabase tables (`users`, `history`, `favorites`, `user_settings`, `trackers`, `notifications`).
 - `/api/media` proxies stream playlists/segments for better playback reliability.
 - Player includes skip controls, speed controls, subtitle tracks, and autoplay-next toggle.
 
