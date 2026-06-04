@@ -27,8 +27,8 @@ export default function NavShell({ children }) {
       <div className="app-grid pointer-events-none absolute inset-0 opacity-60" aria-hidden="true" />
 
       <header className="sticky top-0 z-50 px-4 pt-4 md:px-6 xl:px-8">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between rounded-[6px] border border-zinc-200/80 bg-white/90 px-4 py-2 shadow-[0_8px_28px_rgba(0,0,0,0.04)] backdrop-blur-xl md:px-5">
-          <Link href="/" className="app-mono text-lg font-medium tracking-[-0.04em] text-zinc-900 md:text-xl">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between rounded-[6px] border border-[color:var(--border)] bg-[color:var(--surface-elevated)] px-4 py-2 shadow-[0_8px_28px_rgba(0,0,0,0.04)] backdrop-blur-xl md:px-5">
+          <Link href="/" className="app-mono text-lg font-medium tracking-[-0.04em] text-[color:var(--text-primary)] md:text-xl">
             MeMo
           </Link>
 
@@ -41,8 +41,8 @@ export default function NavShell({ children }) {
                   href={item.href}
                   className={`rounded-[6px] px-3 py-2 text-sm transition md:px-4 ${
                     active
-                      ? "bg-zinc-900 text-white shadow-sm"
-                      : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+                      ? "bg-[color:var(--text-primary)] text-[color:var(--background)] shadow-sm"
+                      : "text-[color:var(--text-secondary)] hover:bg-[color:var(--surface)] hover:text-[color:var(--text-primary)]"
                   }`}
                 >
                   {item.label}
@@ -52,7 +52,7 @@ export default function NavShell({ children }) {
 
             <Link
               href="/search"
-              className="flex h-10 w-10 items-center justify-center rounded-[6px] text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 md:hidden"
+              className="flex h-10 w-10 items-center justify-center rounded-[6px] text-[color:var(--text-secondary)] transition hover:bg-[color:var(--surface)] hover:text-[color:var(--text-primary)] md:hidden"
               aria-label="Search"
               title="Search"
             >
@@ -63,8 +63,8 @@ export default function NavShell({ children }) {
               href="/animesalt"
               className={`flex h-10 w-10 items-center justify-center rounded-[6px] transition ${
                 isActive(pathname, "/animesalt")
-                  ? "bg-zinc-900 text-white shadow-sm"
-                  : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+                  ? "bg-[color:var(--text-primary)] text-[color:var(--background)] shadow-sm"
+                  : "text-[color:var(--text-secondary)] hover:bg-[color:var(--surface)] hover:text-[color:var(--text-primary)]"
               }`}
               aria-label="Open AnimeSalt hub"
               title="AnimeSalt"
@@ -76,8 +76,8 @@ export default function NavShell({ children }) {
               href="/settings"
               className={`flex h-10 w-10 items-center justify-center rounded-[6px] transition ${
                 isActive(pathname, "/settings")
-                  ? "bg-zinc-900 text-white shadow-sm"
-                  : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+                  ? "bg-[color:var(--text-primary)] text-[color:var(--background)] shadow-sm"
+                  : "text-[color:var(--text-secondary)] hover:bg-[color:var(--surface)] hover:text-[color:var(--text-primary)]"
               }`}
               aria-label="Open settings"
               title="Settings"

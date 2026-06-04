@@ -14,7 +14,22 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(() => {
+              try {
+                const stored = localStorage.getItem("memo_theme_mode") || "system";
+                const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+                const theme = stored === "dark" ? "dark" : stored === "light" ? "light" : (prefersDark ? "dark" : "light");
+                document.documentElement.dataset.theme = theme;
+                document.documentElement.style.colorScheme = theme;
+              } catch (_) {}
+            })();`,
+          }}
+        />
+      </head>
       <body className="antialiased">
         <Suspense fallback={null}>
           <AppStatusProvider>

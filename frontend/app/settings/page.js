@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Settings2, Link2, Database, Sparkles } from "lucide-react";
+import { Settings2, Link2, Database, Sparkles, SunMedium, Moon, Monitor } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { useClientSettings } from "../../components/ClientSettingsProvider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
@@ -19,6 +19,7 @@ export default function SettingsPage() {
     sidebarCompact: true,
     preferredSubLang: "en",
     uiAnimations: true,
+    themeMode: "system",
   });
   const [trackers, setTrackers] = useState([]);
   const [trackerDraft, setTrackerDraft] = useState({});
@@ -37,7 +38,14 @@ export default function SettingsPage() {
       apiFetch("/api/settings"),
       apiFetch("/api/trackers"),
     ]);
-    const nextSettings = settingsRes.settings || {};
+    const nextSettings = {
+      autoplayNext: true,
+      sidebarCompact: true,
+      preferredSubLang: "en",
+      uiAnimations: true,
+      themeMode: "system",
+      ...(settingsRes.settings || {}),
+    };
     setSettings(nextSettings);
     setClientSettings(nextSettings);
     setTrackers(trackersRes.items || []);
@@ -214,6 +222,39 @@ export default function SettingsPage() {
             <CardDescription>Tune UI feel and navigation density.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-zinc-700">Theme</span>
+                <span className="text-xs text-zinc-500">System default</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { value: "system", label: "System", icon: Monitor },
+                  { value: "light", label: "Light", icon: SunMedium },
+                  { value: "dark", label: "Dark", icon: Moon },
+                ].map((option) => {
+                  const Icon = option.icon;
+                  const active = (settings.themeMode || "system") === option.value;
+
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => updateDraftSettings({ themeMode: option.value })}
+                      className={`flex items-center justify-center gap-2 rounded-[6px] border px-3 py-2 text-sm transition ${
+                        active
+                          ? "border-zinc-900 bg-zinc-900 text-white shadow-sm"
+                          : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900"
+                      }`}
+                    >
+                      <Icon size={14} />
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="flex items-center justify-between rounded-[6px] border border-zinc-200 px-3 py-2">
               <span className="text-sm text-zinc-700">Compact Sidebar</span>
               <Switch
