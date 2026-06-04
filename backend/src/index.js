@@ -923,7 +923,15 @@ async function start() {
         "MEDIA_PROXY_STRICT_MODE is enabled but MEDIA_PROXY_ALLOWED_HOSTS is empty. /api/media will reject all hosts until allowlist is configured.",
     });
   }
-  await initDb();
+  try {
+    await initDb();
+  } catch (error) {
+    app.log.warn({
+      message:
+        "Supabase schema check failed during startup. The backend will keep running, but settings/history/favorites routes may fail until the database schema is applied.",
+      error: error?.message || String(error),
+    });
+  }
   loadExtensions();
   await app.listen({ port: PORT, host: HOST });
   app.log.info(`MEMO backend running on http://${HOST}:${PORT}`);
