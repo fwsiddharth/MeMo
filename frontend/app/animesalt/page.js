@@ -27,8 +27,8 @@ export default async function AnimeSaltPage() {
   if (error) {
     return (
       <div className="space-y-3">
-        <h1 className="text-2xl font-semibold tracking-tight">AnimeSalt</h1>
-        <p className="rounded-xl border border-red-900 bg-red-950/50 p-3 text-sm text-red-200">{error}</p>
+        <h1 className="app-mono text-2xl font-medium tracking-[-0.03em] text-zinc-950">AnimeSalt</h1>
+        <p className="rounded-[6px] border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>
       </div>
     );
   }

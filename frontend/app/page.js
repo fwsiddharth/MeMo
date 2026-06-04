@@ -3,7 +3,6 @@ import { apiFetch } from "../lib/api";
 import ContinueCard from "../components/ContinueCard";
 import AnimatedSection from "../components/AnimatedSection";
 import HomeSpotlight from "../components/HomeSpotlight";
-import RoutePendingLink from "../components/RoutePendingLink";
 import { requireServerSession } from "../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -26,41 +25,39 @@ function metaText(anime) {
 
 function ListPanel({ title, items = [], limit = 8, fillHeight = false }) {
   return (
-    <section className={`glass rounded-[1.75rem] p-4 md:p-5 ${fillHeight ? "h-full min-h-[470px] md:min-h-[560px]" : ""}`}>
+    <section className={`glass rounded-[6px] p-4 md:p-5 ${fillHeight ? "h-full min-h-[470px] md:min-h-[560px]" : ""}`}>
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-white">{title}</h2>
-        <Link href="/search" className="text-xs text-zinc-500 hover:text-zinc-200">
+        <h2 className="text-lg font-medium tracking-[-0.02em] text-zinc-900">{title}</h2>
+        <Link href="/search" className="text-xs text-zinc-500 hover:text-zinc-900">
           More
         </Link>
       </div>
       {items.length ? (
         <div className="space-y-2.5">
           {items.slice(0, limit).map((anime, index) => (
-            <RoutePendingLink
+            <Link
               key={`${title}-${anime.provider || "anilist"}-${anime.id}`}
               href={animeHref(anime)}
-              className="group flex items-center gap-3 rounded-2xl border border-transparent bg-zinc-950/50 p-2.5 transition hover:border-zinc-700 hover:bg-zinc-950"
-              variant="overlay"
-              loadingLabel="Opening anime"
+              className="group flex items-center gap-3 rounded-[6px] border border-transparent bg-white p-2.5 transition hover:border-zinc-200 hover:bg-zinc-50"
             >
-              <div className="w-7 shrink-0 text-right text-sm font-semibold text-zinc-600 transition group-hover:text-white">
+              <div className="app-mono w-7 shrink-0 text-right text-sm font-medium text-zinc-400 transition group-hover:text-zinc-900">
                 {String(index + 1).padStart(2, "0")}
               </div>
-              <div className="relative h-14 w-10 shrink-0 overflow-hidden rounded-xl bg-zinc-900">
+              <div className="relative h-14 w-10 shrink-0 overflow-hidden rounded-[4px] bg-zinc-100">
                 {anime.coverImage ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={anime.coverImage} alt={anime.title} className="h-full w-full object-cover" loading="lazy" />
                 ) : null}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="line-clamp-1 text-sm font-medium text-zinc-100">{anime.title}</p>
+                <p className="line-clamp-1 text-sm font-medium text-zinc-900">{anime.title}</p>
                 <p className="line-clamp-1 text-xs text-zinc-500">{metaText(anime) || "Unknown format"}</p>
               </div>
-            </RoutePendingLink>
+            </Link>
           ))}
         </div>
       ) : (
-        <div className="rounded-2xl border border-dashed border-zinc-800 bg-zinc-950/35 p-4 text-sm text-zinc-500">
+        <div className="rounded-[6px] border border-dashed border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-500">
           No titles available right now.
         </div>
       )}
@@ -72,22 +69,20 @@ function PosterRow({ title, items = [], limit = 6 }) {
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold tracking-tight text-white">{title}</h2>
-        <Link href="/search" className="text-xs text-zinc-500 hover:text-zinc-200">
+        <h2 className="text-xl font-medium tracking-[-0.03em] text-zinc-900">{title}</h2>
+        <Link href="/search" className="text-xs text-zinc-500 hover:text-zinc-900">
           More
         </Link>
       </div>
       {items.length ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
           {items.slice(0, limit).map((anime) => (
-            <RoutePendingLink
+            <Link
               key={`${title}-${anime.provider || "anilist"}-${anime.id}`}
               href={animeHref(anime)}
-              className="group glass overflow-hidden rounded-[1.45rem] transition hover:border-zinc-500"
-              variant="overlay"
-              loadingLabel="Opening anime"
+              className="group glass overflow-hidden rounded-[6px] transition hover:border-zinc-300"
             >
-              <div className="aspect-[3/4] overflow-hidden bg-zinc-900">
+              <div className="aspect-[3/4] overflow-hidden bg-zinc-100">
                 {anime.coverImage ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -99,14 +94,14 @@ function PosterRow({ title, items = [], limit = 6 }) {
                 ) : null}
               </div>
               <div className="space-y-1 p-3">
-                <p className="line-clamp-2 text-sm font-medium text-white">{anime.title}</p>
+                <p className="line-clamp-2 text-sm font-medium text-zinc-900">{anime.title}</p>
                 <p className="text-xs text-zinc-500">{metaText(anime) || "Unknown format"}</p>
               </div>
-            </RoutePendingLink>
+            </Link>
           ))}
         </div>
       ) : (
-        <div className="rounded-2xl border border-dashed border-zinc-800 bg-zinc-950/35 p-4 text-sm text-zinc-500">
+        <div className="rounded-[6px] border border-dashed border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-500">
           No titles available right now.
         </div>
       )}
@@ -169,9 +164,9 @@ export default async function HomePage() {
   const latestCompleted = home.latestCompleted || [];
 
   return (
-    <div className="space-y-8 pb-6">
+    <div className="space-y-10 pb-8">
       {error ? (
-        <div className="rounded-xl border border-red-900 bg-red-950/50 p-3 text-sm text-red-200">
+        <div className="rounded-[6px] border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
         </div>
       ) : null}
@@ -189,8 +184,8 @@ export default async function HomePage() {
         <AnimatedSection delay={1}>
           <section className="space-y-4">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-xl font-semibold tracking-tight text-white">Continue watching</h2>
-              <Link href="/library" className="text-xs text-zinc-500 hover:text-zinc-200">
+              <h2 className="text-xl font-medium tracking-[-0.03em] text-zinc-900">Continue watching</h2>
+              <Link href="/library" className="text-xs text-zinc-500 hover:text-zinc-900">
                 Library
               </Link>
             </div>

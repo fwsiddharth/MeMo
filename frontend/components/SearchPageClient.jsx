@@ -211,8 +211,8 @@ export default function SearchPageClient() {
   return (
     <div className="space-y-5">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Search</h1>
-        <p className="text-sm text-zinc-400">
+        <h1 className="app-mono text-2xl font-medium tracking-[-0.03em] text-zinc-950">Search</h1>
+        <p className="text-sm leading-6 text-zinc-500">
           Search globally through AniList, or switch to AnimeSalt to browse dubbed anime, cartoons, and network-specific shelves.
         </p>
       </header>
@@ -221,7 +221,7 @@ export default function SearchPageClient() {
         <CardContent className="space-y-4 pt-4">
           <form onSubmit={onSearch} className="flex flex-wrap gap-2">
             <div className="relative w-full md:flex-1">
-              <SearchIcon size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <SearchIcon size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
               <Input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -232,19 +232,19 @@ export default function SearchPageClient() {
             <select
               value={sourceFilter}
               onChange={(event) => setSourceFilter(event.target.value)}
-              className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs text-zinc-200 outline-none"
+              className="rounded-[6px] border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-900 outline-none"
             >
               <option value="global">Global Catalog</option>
               <option value="animesalt">AnimeSalt</option>
             </select>
-            <div className="inline-flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs text-zinc-400">
+            <div className="inline-flex items-center gap-2 rounded-[6px] border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs text-zinc-500">
               <SlidersHorizontal size={14} />
               Filters
             </div>
             <select
               value={formatFilter}
               onChange={(event) => setFormatFilter(event.target.value)}
-              className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs text-zinc-200 outline-none"
+              className="rounded-[6px] border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-900 outline-none"
             >
               <option value="all">All Formats</option>
               <option value="tv">{sourceFilter === "animesalt" ? "Series" : "TV"}</option>
@@ -260,7 +260,7 @@ export default function SearchPageClient() {
             <select
               value={sortBy}
               onChange={(event) => setSortBy(event.target.value)}
-              className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs text-zinc-200 outline-none"
+              className="rounded-[6px] border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-900 outline-none"
             >
               <option value="match">Best Match</option>
               {sourceFilter === "animesalt" ? (
@@ -283,7 +283,7 @@ export default function SearchPageClient() {
               <select
                 value={languageFilter}
                 onChange={(event) => setLanguageFilter(event.target.value)}
-                className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs text-zinc-200 outline-none"
+                className="rounded-[6px] border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-900 outline-none"
               >
                 <option value="">All Languages</option>
                 {discoverFilters.languages.map((option) => (
@@ -295,7 +295,7 @@ export default function SearchPageClient() {
               <select
                 value={platformFilter}
                 onChange={(event) => setPlatformFilter(event.target.value)}
-                className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs text-zinc-200 outline-none"
+                className="rounded-[6px] border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-900 outline-none"
               >
                 <option value="">All Platforms</option>
                 {discoverFilters.platforms.map((option) => (
@@ -310,7 +310,7 @@ export default function SearchPageClient() {
       </Card>
 
       {error ? (
-        <p className="rounded-xl border border-red-900 bg-red-950/50 p-3 text-sm text-red-200">{error}</p>
+        <p className="rounded-[6px] border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>
       ) : null}
 
       {showAnimeSaltDiscover ? (
@@ -318,8 +318,8 @@ export default function SearchPageClient() {
           <Card>
             <CardContent className="space-y-4 py-5">
               <div className="space-y-1">
-                <h2 className="text-lg font-semibold">AnimeSalt Discover</h2>
-                <p className="text-sm text-zinc-400">
+                <h2 className="app-mono text-lg font-medium tracking-[-0.02em] text-zinc-900">AnimeSalt Discover</h2>
+                <p className="text-sm leading-6 text-zinc-500">
                   Browse by Indian audio language or jump straight into platform shelves like Netflix, Cartoon Network, or Crunchyroll.
                 </p>
               </div>
@@ -332,7 +332,7 @@ export default function SearchPageClient() {
                       key={option.value}
                       type="button"
                       onClick={() => pushBrowseState({ source: "animesalt", language: option.value, platform: "", format: "all" })}
-                      className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1.5 text-xs text-cyan-100 transition hover:border-cyan-300/40"
+                      className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-50"
                     >
                       {option.label}
                     </button>
@@ -348,7 +348,7 @@ export default function SearchPageClient() {
                       key={option.value}
                       type="button"
                       onClick={() => pushBrowseState({ source: "animesalt", platform: option.value, language: "", format: "all" })}
-                      className="rounded-full border border-pink-400/20 bg-pink-400/10 px-3 py-1.5 text-xs text-pink-100 transition hover:border-pink-300/40"
+                      className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-50"
                     >
                       {option.label}
                     </button>
@@ -360,14 +360,14 @@ export default function SearchPageClient() {
 
           {discoverLoading ? (
             <Card>
-              <CardContent className="py-8 text-center text-sm text-zinc-400">Loading AnimeSalt shelves...</CardContent>
+              <CardContent className="py-8 text-center text-sm text-zinc-500">Loading AnimeSalt shelves...</CardContent>
             </Card>
           ) : null}
 
           {(discover?.sections || []).map((section) => (
             <section key={section.id} className="space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <h2 className="text-lg font-semibold">{section.title}</h2>
+                <h2 className="text-lg font-medium tracking-[-0.02em] text-zinc-900">{section.title}</h2>
                 <button
                   type="button"
                   onClick={() =>
@@ -378,7 +378,7 @@ export default function SearchPageClient() {
                       format: "all",
                     })
                   }
-                  className="text-xs text-zinc-500 hover:text-zinc-200"
+                  className="text-xs text-zinc-500 hover:text-zinc-900"
                 >
                   Open shelf
                 </button>
@@ -404,7 +404,7 @@ export default function SearchPageClient() {
 
       {!loading && !discoverLoading && !error && sourceFilter !== "animesalt" && query.trim().length < 2 ? (
         <Card>
-          <CardContent className="py-8 text-center text-sm text-zinc-400">
+          <CardContent className="py-8 text-center text-sm text-zinc-500">
             Search for a title to build a clean list you can filter and sort.
           </CardContent>
         </Card>
@@ -412,7 +412,7 @@ export default function SearchPageClient() {
 
       {!loading && !discoverLoading && !error && !showAnimeSaltDiscover && sourceFilter === "animesalt" && !displayItems.length ? (
         <Card>
-          <CardContent className="py-8 text-center text-sm text-zinc-400">
+          <CardContent className="py-8 text-center text-sm text-zinc-500">
             No AnimeSalt matches yet. Try a different title, switch platform, or choose an audio language shelf.
           </CardContent>
         </Card>

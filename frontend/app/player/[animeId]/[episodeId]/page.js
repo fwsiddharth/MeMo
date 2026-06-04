@@ -3,7 +3,6 @@ import VideoPlayer from "../../../../components/VideoPlayer";
 import EpisodeSidebar from "../../../../components/EpisodeSidebar";
 import PlayerControlBar from "../../../../components/PlayerControlBar";
 import FavoriteButton from "../../../../components/FavoriteButton";
-import RoutePendingLink from "../../../../components/RoutePendingLink";
 import { apiFetch, stripHtml } from "../../../../lib/api";
 import { requireServerSession } from "../../../../lib/supabase/server";
 
@@ -203,8 +202,8 @@ export default async function PlayerPage({ params, searchParams }) {
   if (loadError) {
     return (
       <div className="space-y-3">
-        <h1 className="text-xl font-semibold">Player</h1>
-        <p className="rounded-xl border border-red-900 bg-red-950/50 p-3 text-sm text-red-200">
+        <h1 className="app-mono text-xl font-medium tracking-[-0.03em] text-zinc-950">Player</h1>
+        <p className="rounded-[6px] border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {loadError}
         </p>
       </div>
@@ -304,13 +303,13 @@ export default async function PlayerPage({ params, searchParams }) {
     <div className="space-y-4 pb-6">
       {/* ── Breadcrumb ────────────────────────────────── */}
       <nav className="text-sm text-zinc-400">
-        <Link href="/" className="transition hover:text-zinc-200">
+        <Link href="/" className="transition hover:text-zinc-900">
           Home
         </Link>
         <span className="mx-1.5 text-zinc-600">·</span>
         <span>{displayFormat}</span>
         <span className="mx-1.5 text-zinc-600">·</span>
-        <span className="text-zinc-200">Watching {displayTitle}</span>
+        <span className="text-zinc-900">Watching {displayTitle}</span>
       </nav>
 
       {/* ── Main 3-column layout ──────────────────────── */}
@@ -326,7 +325,7 @@ export default async function PlayerPage({ params, searchParams }) {
             className="sticky top-20 xl:h-[calc(100vh-100px)] overflow-hidden"
           />
         ) : (
-          <aside className="flex h-60 items-center justify-center rounded-xl border border-zinc-800/60 bg-[#141422]/90 p-4 xl:sticky xl:top-20">
+          <aside className="flex h-60 items-center justify-center rounded-[6px] border border-zinc-200 bg-white p-4 xl:sticky xl:top-20">
             <p className="text-center text-xs text-zinc-500">
               No episodes available.
             </p>
@@ -338,7 +337,7 @@ export default async function PlayerPage({ params, searchParams }) {
            ╚═══════════════════════════════════════════════ */}
         <div className="space-y-3">
           {/* Video Player */}
-          <div className="overflow-hidden rounded-xl border border-zinc-800/60 bg-black">
+          <div className="overflow-hidden rounded-[6px] border border-zinc-200 bg-black">
             {requestedSource && stream ? (
               <VideoPlayer
                 stream={stream}
@@ -388,18 +387,18 @@ export default async function PlayerPage({ params, searchParams }) {
           />
 
           {/* ── Server Selector Panel ───────────────────── */}
-          <section className="overflow-hidden rounded-xl border border-zinc-800/60">
+          <section className="overflow-hidden rounded-[6px] border border-zinc-200 bg-white shadow-[0_0_0_1px_#ebebeb,0_1px_2px_rgba(0,0,0,0.05)]">
             <div className="grid md:grid-cols-[220px_1fr]">
               {/* Red info panel */}
-              <div className="flex items-center justify-center bg-gradient-to-br from-red-600 to-red-700 px-5 py-5 text-center text-white">
+              <div className="flex items-center justify-center bg-[linear-gradient(135deg,#171717,#2a2a2a)] px-5 py-5 text-center text-white">
                 <div className="space-y-1.5">
-                  <p className="text-[13px] font-medium leading-tight text-red-100">
+                  <p className="text-[13px] font-medium leading-tight text-zinc-300">
                     You are watching
                   </p>
                   <p className="text-lg font-bold leading-tight">
                     Episode {currentEpisode.number || "?"}
                   </p>
-                  <p className="text-[11px] leading-snug text-red-200/80">
+                  <p className="text-[11px] leading-snug text-zinc-400">
                     If the current server doesn&apos;t work, please try other
                     servers beside.
                   </p>
@@ -407,11 +406,11 @@ export default async function PlayerPage({ params, searchParams }) {
               </div>
 
               {/* Server buttons */}
-              <div className="space-y-4 bg-[#141422]/90 p-4">
+              <div className="space-y-4 bg-white p-4">
                 {/* SUB row */}
                 <div className="flex flex-wrap items-center gap-3">
-                  <span className="inline-flex w-12 items-center gap-1.5 text-sm font-bold text-zinc-300">
-                    <span className="h-2 w-2 rounded-full bg-red-500" />
+                  <span className="inline-flex w-12 items-center gap-1.5 text-sm font-medium text-zinc-700">
+                    <span className="h-2 w-2 rounded-full bg-zinc-900" />
                     SUB:
                   </span>
                   <div className="flex flex-wrap gap-2">
@@ -459,19 +458,17 @@ export default async function PlayerPage({ params, searchParams }) {
                         const isActive = sourceName === requestedSource && (!activeTranslation || activeTranslation === "sub");
 
                         return (
-                          <RoutePendingLink
+                          <Link
                             key={`sub-${sourceName}`}
                             href={subHref}
-                            className={`rounded-lg px-5 py-1.5 text-[13px] font-semibold transition ${
+                            className={`rounded-[6px] px-5 py-1.5 text-[13px] font-medium transition ${
                               isActive
-                                ? "bg-red-600 text-white shadow-md shadow-red-900/30"
-                                : "bg-zinc-700/80 text-zinc-300 hover:bg-zinc-600"
+                                ? "bg-zinc-900 text-white shadow-sm"
+                                : "border border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900"
                             }`}
-                            variant="inline"
-                            loadingLabel="Loading server"
                           >
                             {displayNames[sourceName] || sourceName}
-                          </RoutePendingLink>
+                          </Link>
                         );
                       })
                     ) : (
@@ -484,8 +481,8 @@ export default async function PlayerPage({ params, searchParams }) {
 
                 {/* DUB row */}
                 <div className="flex flex-wrap items-center gap-3">
-                  <span className="inline-flex w-12 items-center gap-1.5 text-sm font-bold text-zinc-300">
-                    <span className="h-2 w-2 rounded-full bg-amber-400" />
+                  <span className="inline-flex w-12 items-center gap-1.5 text-sm font-medium text-zinc-700">
+                    <span className="h-2 w-2 rounded-full bg-zinc-400" />
                     DUB:
                   </span>
                   <div className="flex flex-wrap gap-2">
@@ -531,19 +528,17 @@ export default async function PlayerPage({ params, searchParams }) {
                         };
 
                         return (
-                          <RoutePendingLink
+                          <Link
                             key={`dub-${sourceName}`}
                             href={dubHref}
-                            className={`rounded-lg px-5 py-1.5 text-[13px] font-semibold transition ${
+                            className={`rounded-[6px] px-5 py-1.5 text-[13px] font-medium transition ${
                                sourceName === requestedSource && activeTranslation === "dub"
-                                ? "bg-amber-500 text-black shadow-md shadow-amber-900/40"
-                                : "bg-zinc-700/80 text-zinc-300 hover:bg-zinc-600"
+                                ? "bg-zinc-900 text-white shadow-sm"
+                                : "border border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900"
                             }`}
-                            variant="inline"
-                            loadingLabel="Loading server"
                           >
                             {displayNames[sourceName] || sourceName}
-                          </RoutePendingLink>
+                          </Link>
                         );
                       })
                     ) : (
@@ -555,17 +550,17 @@ export default async function PlayerPage({ params, searchParams }) {
                 </div>
 
                 {/* Current info line */}
-                <div className="flex flex-wrap items-center gap-3 border-t border-zinc-800/50 pt-3 text-xs text-zinc-500">
+                <div className="flex flex-wrap items-center gap-3 border-t border-zinc-200 pt-3 text-xs text-zinc-500">
                   <span>
                     Current:{" "}
-                    <span className="text-zinc-300">
+                    <span className="text-zinc-900">
                       {requestedSource || "not selected"}
                     </span>
                   </span>
                   {activeTranslation ? (
                     <span>
                       Language:{" "}
-                      <span className="text-zinc-300">
+                      <span className="text-zinc-900">
                         {activeTranslation}
                       </span>
                     </span>
@@ -573,7 +568,7 @@ export default async function PlayerPage({ params, searchParams }) {
                   {nextEpisodeHref ? (
                     <Link
                       href={nextEpisodeHref}
-                      className="rounded-md border border-zinc-700/60 px-2 py-1 text-zinc-300 transition hover:border-zinc-500 hover:text-white"
+                      className="rounded-[6px] border border-zinc-200 px-2 py-1 text-zinc-600 transition hover:border-zinc-300 hover:text-zinc-900"
                     >
                       Next Episode →
                     </Link>
@@ -585,7 +580,7 @@ export default async function PlayerPage({ params, searchParams }) {
 
           {/* ── Next Airing Banner ──────────────────────── */}
           {anime?.nextAiringEpisode?.airingAt ? (
-            <div className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 px-4 py-3 text-sm text-white shadow-lg shadow-cyan-900/20">
+            <div className="flex items-center gap-3 rounded-[6px] border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-900">
               <span className="text-base">🎉</span>
               <p className="flex-1">
                 Estimated the next episode will come at{" "}
@@ -601,10 +596,10 @@ export default async function PlayerPage({ params, searchParams }) {
            ║  RIGHT — Anime Info Sidebar
            ╚═══════════════════════════════════════════════ */}
         <aside className="space-y-3 xl:sticky xl:top-20 xl:h-[calc(100vh-100px)] overflow-y-auto custom-scrollbar no-scrollbar flex flex-col">
-          <div className="space-y-3 rounded-xl border border-zinc-800/60 bg-[#141422]/90 p-3 backdrop-blur-sm shrink-0">
+          <div className="space-y-3 rounded-[6px] border border-zinc-200 bg-white p-3 shadow-[0_0_0_1px_#ebebeb,0_1px_2px_rgba(0,0,0,0.05)] shrink-0">
             {/* Cover image */}
             {displayCover ? (
-              <div className="overflow-hidden rounded-lg">
+              <div className="overflow-hidden rounded-[6px]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={displayCover}
@@ -615,57 +610,57 @@ export default async function PlayerPage({ params, searchParams }) {
             ) : null}
 
             {/* Title */}
-            <h1 className="text-xl font-bold leading-tight tracking-tight text-white">
+            <h1 className="app-mono text-xl font-medium leading-tight tracking-[-0.03em] text-zinc-950">
               {displayTitle}
             </h1>
 
             {/* Badges row */}
             <div className="flex flex-wrap items-center gap-1.5">
               {anime?.averageScore ? (
-                <span className="rounded bg-rose-600/80 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                <span className="rounded border border-zinc-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-zinc-700">
                   HD
                 </span>
               ) : null}
               {anime?.averageScore ? (
-                <span className="rounded bg-orange-600/80 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                <span className="rounded border border-zinc-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-zinc-700">
                   ⭐ {anime.averageScore}
                 </span>
               ) : null}
               {anime?.popularity ? (
-                <span className="rounded bg-emerald-700/80 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                <span className="rounded border border-zinc-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-zinc-700">
                   ♡ {anime.popularity.toLocaleString()}
                 </span>
               ) : null}
               {anime?.format ? (
-                <span className="text-[11px] text-zinc-400">
+                <span className="text-[11px] text-zinc-500">
                   · {anime.format}
                 </span>
               ) : null}
               {anime?.episodes ? (
-                <span className="text-[11px] text-zinc-400">
+                <span className="text-[11px] text-zinc-500">
                   · {anime.episodes} eps
                 </span>
               ) : null}
               {anime?.status ? (
-                <span className="text-[11px] text-zinc-400">
+                <span className="text-[11px] text-zinc-500">
                   · {anime.status}
                 </span>
               ) : null}
             </div>
 
             {/* Synopsis */}
-            <p className="text-[12px] leading-[1.6] text-zinc-400">
+            <p className="text-[12px] leading-[1.6] text-zinc-500">
               {stripHtml(anime?.description || "No synopsis available.")}
             </p>
 
             {/* MeMo signature line */}
             <p className="text-[11px] leading-[1.5] text-zinc-500">
               MeMo is the best app to watch{" "}
-              <span className="font-semibold text-zinc-300">
+              <span className="font-medium text-zinc-900">
                 {displayTitle}
               </span>{" "}
               SUB online, or you can even watch{" "}
-              <span className="font-semibold text-zinc-300">
+              <span className="font-medium text-zinc-900">
                 {displayTitle}
               </span>{" "}
               DUB in HD quality.
@@ -675,7 +670,7 @@ export default async function PlayerPage({ params, searchParams }) {
             <div className="flex items-center gap-2 pt-1">
               <Link
                 href={`/anime/${encodedAnimeId}?provider=${encodeURIComponent(provider)}${requestedSource ? `&source=${encodeURIComponent(requestedSource)}` : ""}${activeTranslation ? `&translation=${encodeURIComponent(activeTranslation)}` : ""}`}
-                className="rounded-lg border border-zinc-700/60 px-3 py-1.5 text-[12px] font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-white"
+                className="rounded-[6px] border border-zinc-200 px-3 py-1.5 text-[12px] font-medium text-zinc-600 transition hover:border-zinc-300 hover:text-zinc-900"
               >
                 View detail
               </Link>
@@ -690,15 +685,15 @@ export default async function PlayerPage({ params, searchParams }) {
           </div>
 
           {/* Share section */}
-          <div className="flex items-center gap-3 rounded-xl border border-zinc-800/60 bg-[#141422]/90 p-3 backdrop-blur-sm shrink-0">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 text-xs font-bold text-white">
+          <div className="flex items-center gap-3 rounded-[6px] border border-zinc-200 bg-white p-3 shadow-[0_0_0_1px_#ebebeb,0_1px_2px_rgba(0,0,0,0.05)] shrink-0">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs font-medium text-white">
               M
             </div>
             <div>
-              <p className="text-[12px] font-semibold text-cyan-300">
+              <p className="text-[12px] font-medium text-zinc-900">
                 Share Anime
               </p>
-              <p className="text-[11px] text-zinc-400">to your friends</p>
+              <p className="text-[11px] text-zinc-500">to your friends</p>
             </div>
           </div>
         </aside>

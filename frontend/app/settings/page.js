@@ -148,16 +148,16 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <p className="text-xs uppercase tracking-[0.2em] text-zinc-400">Control Center</p>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight md:text-3xl">
+        <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Control Center</p>
+        <h1 className="app-mono flex items-center gap-2 text-2xl font-medium tracking-[-0.03em] text-zinc-950 md:text-3xl">
           <Settings2 size={24} />
           Settings
         </h1>
-        <p className="text-sm text-zinc-400">Manage source, UI behavior, playback defaults, and tracker connections.</p>
+        <p className="text-sm leading-6 text-zinc-500">Manage source, UI behavior, playback defaults, and tracker connections.</p>
       </header>
 
       {message ? (
-        <div className="rounded-xl border border-zinc-700 bg-zinc-900/70 px-3 py-2 text-xs text-zinc-300">{message}</div>
+        <div className="rounded-[6px] border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600">{message}</div>
       ) : null}
 
       <Card>
@@ -167,7 +167,7 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-medium text-zinc-200">{userEmail || "Signed in"}</p>
+            <p className="text-sm font-medium text-zinc-900">{userEmail || "Signed in"}</p>
             <p className="text-xs text-zinc-500">Your history, favorites, settings, and trackers are now scoped per user.</p>
           </div>
           <Button variant="secondary" onClick={signOut}>
@@ -187,7 +187,7 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <label className="space-y-1 text-sm">
-              <span className="text-zinc-300">Preferred Subtitle Language</span>
+              <span className="text-zinc-700">Preferred Subtitle Language</span>
               <Input
                 value={settings.preferredSubLang || "en"}
                 onChange={(e) => updateDraftSettings({ preferredSubLang: e.target.value })}
@@ -195,8 +195,8 @@ export default function SettingsPage() {
               />
             </label>
 
-            <div className="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2">
-              <span className="text-sm text-zinc-300">Autoplay Next Episode</span>
+            <div className="flex items-center justify-between rounded-[6px] border border-zinc-200 px-3 py-2">
+              <span className="text-sm text-zinc-700">Autoplay Next Episode</span>
               <Switch
                 checked={Boolean(settings.autoplayNext)}
                 onCheckedChange={(value) => updateDraftSettings({ autoplayNext: Boolean(value) })}
@@ -214,15 +214,15 @@ export default function SettingsPage() {
             <CardDescription>Tune UI feel and navigation density.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2">
-              <span className="text-sm text-zinc-300">Compact Sidebar</span>
+            <div className="flex items-center justify-between rounded-[6px] border border-zinc-200 px-3 py-2">
+              <span className="text-sm text-zinc-700">Compact Sidebar</span>
               <Switch
                 checked={Boolean(settings.sidebarCompact)}
                 onCheckedChange={(value) => updateDraftSettings({ sidebarCompact: Boolean(value) })}
               />
             </div>
-            <div className="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2">
-              <span className="text-sm text-zinc-300">Enable GSAP Scroll Animations</span>
+            <div className="flex items-center justify-between rounded-[6px] border border-zinc-200 px-3 py-2">
+              <span className="text-sm text-zinc-700">Enable GSAP Scroll Animations</span>
               <Switch
                 checked={Boolean(settings.uiAnimations)}
                 onCheckedChange={(value) => updateDraftSettings({ uiAnimations: Boolean(value) })}
@@ -248,8 +248,8 @@ export default function SettingsPage() {
           {trackerProviders.map((provider) => {
             const current = trackers.find((t) => t.provider === provider);
             return (
-              <div key={provider} className="rounded-xl border border-zinc-800 p-3">
-                <p className="text-sm font-medium uppercase tracking-wide text-zinc-200">{provider}</p>
+              <div key={provider} className="rounded-[6px] border border-zinc-200 p-3">
+                <p className="text-sm font-medium uppercase tracking-wide text-zinc-900">{provider}</p>
                 <p className="mt-1 text-xs text-zinc-500">
                   {current?.connected ? `Connected${current.username ? ` as ${current.username}` : ""}` : "Not connected"}
                 </p>

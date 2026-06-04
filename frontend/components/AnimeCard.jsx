@@ -1,5 +1,5 @@
+import Link from "next/link";
 import { stripHtml } from "../lib/api";
-import RoutePendingLink from "./RoutePendingLink";
 
 export default function AnimeCard({ anime }) {
   const encodedAnimeId = encodeURIComponent(String(anime?.id || ""));
@@ -19,13 +19,11 @@ export default function AnimeCard({ anime }) {
       .join(" · ");
 
   return (
-    <RoutePendingLink
+    <Link
       href={href}
-      className="glass group overflow-hidden rounded-2xl transition hover:border-zinc-500"
-      variant="overlay"
-      loadingLabel="Opening anime"
+      className="glass group overflow-hidden rounded-[6px] transition hover:border-zinc-300"
     >
-      <div className="aspect-[3/4] w-full overflow-hidden bg-zinc-800">
+      <div className="aspect-[3/4] w-full overflow-hidden bg-zinc-100">
         {anime.coverImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -38,18 +36,18 @@ export default function AnimeCard({ anime }) {
       </div>
       <div className="space-y-1 p-3">
         <div className="flex items-start justify-between gap-2">
-          <p className="line-clamp-1 text-sm font-medium">{anime.title}</p>
+          <p className="line-clamp-1 text-sm font-medium text-zinc-900">{anime.title}</p>
           {anime.averageScore ? (
-            <span className="rounded-full border border-emerald-300/50 bg-emerald-300/10 px-2 py-0.5 text-[10px] text-emerald-300">
+            <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[10px] text-zinc-700">
               {anime.averageScore}
             </span>
           ) : null}
         </div>
-        <p className="line-clamp-2 text-xs text-zinc-400">{metaLine || "No synopsis available."}</p>
-        <p className="text-xs text-zinc-500">
+        <p className="line-clamp-2 text-xs text-zinc-500">{metaLine || "No synopsis available."}</p>
+        <p className="text-xs text-zinc-400">
           {anime.episodes ? `${anime.episodes} eps` : "Unknown episodes"}
         </p>
       </div>
-    </RoutePendingLink>
+    </Link>
   );
 }

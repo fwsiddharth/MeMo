@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { stripHtml } from "../lib/api";
-import RoutePendingLink from "./RoutePendingLink";
 
 function animeHref(anime) {
   const encodedAnimeId = encodeURIComponent(String(anime?.id || ""));
@@ -44,7 +43,7 @@ export default function HomeSpotlight({ items = [] }) {
   };
 
   return (
-    <section className="glass relative min-h-[470px] overflow-hidden rounded-[2rem] md:min-h-[560px]">
+    <section className="glass relative min-h-[470px] overflow-hidden rounded-[6px] md:min-h-[560px]">
       <div className="absolute inset-0">
         {active.bannerImage || active.coverImage ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -52,22 +51,22 @@ export default function HomeSpotlight({ items = [] }) {
             key={active.id}
             src={active.bannerImage || active.coverImage}
             alt={active.title}
-            className="h-full w-full object-cover opacity-55"
+            className="h-full w-full object-cover opacity-25"
           />
         ) : null}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.16),transparent_24%),linear-gradient(110deg,rgba(5,7,12,0.98)_18%,rgba(7,10,16,0.88)_55%,rgba(9,12,18,0.54)_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(0,112,243,0.14),transparent_22%),radial-gradient(circle_at_bottom_left,rgba(0,0,0,0.035),transparent_28%),linear-gradient(135deg,rgba(255,255,255,0.98)_18%,rgba(250,250,250,0.98)_55%,rgba(255,255,255,0.92)_100%)]" />
       </div>
 
       <div className="relative flex h-full min-h-[470px] flex-col justify-between p-6 md:min-h-[560px] md:p-8">
         <div className="flex items-start justify-between gap-4">
-          <div className="rounded-full border border-white/10 bg-black/25 px-3 py-1 text-[11px] uppercase tracking-[0.26em] text-cyan-300">
+          <div className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-[11px] uppercase tracking-[0.26em] text-zinc-900 shadow-sm">
             Spotlight
           </div>
           <div className="hidden items-center gap-2 md:flex">
             <button
               type="button"
               onClick={goPrev}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-black/25 text-zinc-100 transition hover:border-white/25 hover:bg-black/40"
+              className="flex h-10 w-10 items-center justify-center rounded-[6px] border border-zinc-200 bg-white text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-50"
               aria-label="Previous spotlight anime"
             >
               <ChevronLeft size={18} />
@@ -75,7 +74,7 @@ export default function HomeSpotlight({ items = [] }) {
             <button
               type="button"
               onClick={goNext}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-black/25 text-zinc-100 transition hover:border-white/25 hover:bg-black/40"
+              className="flex h-10 w-10 items-center justify-center rounded-[6px] border border-zinc-200 bg-white text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-50"
               aria-label="Next spotlight anime"
             >
               <ChevronRight size={18} />
@@ -85,31 +84,29 @@ export default function HomeSpotlight({ items = [] }) {
 
         <div className="max-w-3xl space-y-5">
           <div className="space-y-4">
-            <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-white md:text-6xl">
+            <h1 className="app-mono max-w-3xl text-4xl font-medium tracking-[-0.04em] text-zinc-950 md:text-6xl">
               {active.title}
             </h1>
-            <div className="flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.18em] text-zinc-300">
-              {active.format ? <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1">{active.format}</span> : null}
-              {active.status ? <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1">{active.status}</span> : null}
-              {active.episodes ? <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1">{active.episodes} eps</span> : null}
+            <div className="flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.18em] text-zinc-600">
+              {active.format ? <span className="rounded-full border border-zinc-200 bg-white px-3 py-1 shadow-sm">{active.format}</span> : null}
+              {active.status ? <span className="rounded-full border border-zinc-200 bg-white px-3 py-1 shadow-sm">{active.status}</span> : null}
+              {active.episodes ? <span className="rounded-full border border-zinc-200 bg-white px-3 py-1 shadow-sm">{active.episodes} eps</span> : null}
             </div>
-            <p className="line-clamp-4 max-w-2xl text-sm leading-6 text-zinc-300 md:text-base">
+            <p className="line-clamp-4 max-w-2xl text-sm leading-6 text-zinc-600 md:text-base">
               {stripHtml(active.description || "") || "No synopsis available."}
             </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <RoutePendingLink
+            <Link
               href={animeHref(active)}
-              className="rounded-2xl bg-cyan-300 px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-cyan-200"
-              variant="inline"
-              loadingLabel="Opening anime"
+              className="rounded-[6px] border border-zinc-900 bg-zinc-900 px-5 py-3 text-sm font-medium text-white transition hover:opacity-90"
             >
               Watch now
-            </RoutePendingLink>
+            </Link>
             <Link
               href="/search"
-              className="rounded-2xl border border-white/12 bg-black/20 px-5 py-3 text-sm font-medium text-zinc-100 transition hover:border-white/25"
+              className="rounded-[6px] border border-zinc-200 bg-white px-5 py-3 text-sm font-medium text-zinc-900 transition hover:border-zinc-300 hover:bg-zinc-50"
             >
               Browse anime
             </Link>
@@ -125,7 +122,7 @@ export default function HomeSpotlight({ items = [] }) {
                 onClick={() => setActiveIndex(index)}
                 aria-label={`Go to spotlight anime ${index + 1}`}
                 className={`rounded-full transition ${
-                  index === activeIndex ? "h-2.5 w-8 bg-cyan-300" : "h-2.5 w-2.5 bg-white/30 hover:bg-white/55"
+                  index === activeIndex ? "h-2.5 w-8 bg-zinc-900" : "h-2.5 w-2.5 bg-zinc-300 hover:bg-zinc-500"
                 }`}
               />
             ))}
@@ -134,7 +131,7 @@ export default function HomeSpotlight({ items = [] }) {
             <button
               type="button"
               onClick={goPrev}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-black/25 text-zinc-100 transition hover:border-white/25 hover:bg-black/40"
+              className="flex h-10 w-10 items-center justify-center rounded-[6px] border border-zinc-200 bg-white text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-50"
               aria-label="Previous spotlight anime"
             >
               <ChevronLeft size={18} />
@@ -142,7 +139,7 @@ export default function HomeSpotlight({ items = [] }) {
             <button
               type="button"
               onClick={goNext}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-black/25 text-zinc-100 transition hover:border-white/25 hover:bg-black/40"
+              className="flex h-10 w-10 items-center justify-center rounded-[6px] border border-zinc-200 bg-white text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-50"
               aria-label="Next spotlight anime"
             >
               <ChevronRight size={18} />

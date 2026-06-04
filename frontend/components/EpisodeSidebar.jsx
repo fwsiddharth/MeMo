@@ -74,11 +74,11 @@ export default function EpisodeSidebar({
 
   return (
     <aside
-      className={`flex flex-col overflow-hidden rounded-xl border border-zinc-800/60 bg-[#141422]/90 backdrop-blur-sm ${className}`}
+      className={`flex flex-col overflow-hidden rounded-[6px] border border-zinc-200 bg-white shadow-[0_0_0_1px_#ebebeb,0_1px_2px_rgba(0,0,0,0.05)] ${className}`}
     >
       {/* Header */}
-      <div className="border-b border-zinc-800/50 px-3 pb-2.5 pt-3">
-        <p className="mb-2.5 text-[13px] font-semibold text-zinc-200">
+      <div className="border-b border-zinc-200 px-3 pb-2.5 pt-3">
+        <p className="mb-2.5 text-[13px] font-medium text-zinc-900">
           List of episodes:
         </p>
 
@@ -88,7 +88,7 @@ export default function EpisodeSidebar({
             <button
               type="button"
               onClick={() => setDropdownOpen((v) => !v)}
-              className="flex items-center gap-1 rounded-md border border-zinc-700/70 bg-zinc-900/80 px-2 py-[5px] text-[11px] text-zinc-300 transition hover:border-zinc-600"
+              className="flex items-center gap-1 rounded-[6px] border border-zinc-200 bg-white px-2 py-[5px] text-[11px] text-zinc-600 transition hover:border-zinc-300 hover:text-zinc-900"
             >
               <LayoutGrid size={11} />
               <span className="whitespace-nowrap">{currentRangeLabel}</span>
@@ -98,7 +98,7 @@ export default function EpisodeSidebar({
               />
             </button>
             {dropdownOpen && ranges.length > 0 ? (
-              <div className="absolute left-0 top-full z-50 mt-1 w-36 rounded-lg border border-zinc-700/80 bg-zinc-900 shadow-2xl">
+              <div className="absolute left-0 top-full z-50 mt-1 w-36 rounded-[6px] border border-zinc-200 bg-white shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
                 {ranges.map((range) => (
                   <button
                     key={range.start}
@@ -108,10 +108,10 @@ export default function EpisodeSidebar({
                       setDropdownOpen(false);
                       setSearchQuery("");
                     }}
-                    className={`block w-full px-3 py-1.5 text-left text-[11px] transition hover:bg-zinc-800 ${
+                    className={`block w-full px-3 py-1.5 text-left text-[11px] transition hover:bg-zinc-50 ${
                       range.start === rangeStart
-                        ? "bg-zinc-800/60 text-cyan-300"
-                        : "text-zinc-300"
+                        ? "bg-zinc-100 text-zinc-900"
+                        : "text-zinc-600"
                     }`}
                   >
                     {range.label}
@@ -122,14 +122,14 @@ export default function EpisodeSidebar({
           </div>
 
           {/* Episode search */}
-          <div className="flex flex-1 items-center gap-1 rounded-md border border-zinc-700/70 bg-zinc-900/80 px-2 py-[5px]">
-            <Search size={11} className="shrink-0 text-zinc-500" />
+          <div className="flex flex-1 items-center gap-1 rounded-[6px] border border-zinc-200 bg-white px-2 py-[5px]">
+            <Search size={11} className="shrink-0 text-zinc-400" />
             <input
               type="text"
               placeholder="Number of Ep"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full min-w-0 bg-transparent text-[11px] text-zinc-200 outline-none placeholder:text-zinc-600"
+              className="w-full min-w-0 bg-transparent text-[11px] text-zinc-900 outline-none placeholder:text-zinc-400"
             />
           </div>
         </div>
@@ -150,10 +150,10 @@ export default function EpisodeSidebar({
                   href={ep.href || "#"}
                   className={`flex h-[30px] items-center justify-center rounded text-[12px] font-medium transition-colors ${
                     isActive
-                      ? "border border-red-500 bg-red-500/10 text-red-400"
+                      ? "border border-zinc-900 bg-zinc-900 text-white"
                       : isWatched
-                        ? "border border-cyan-700/30 bg-cyan-900/30 text-cyan-300 hover:bg-cyan-800/40"
-                        : "border border-zinc-800 bg-zinc-800/60 text-zinc-400 hover:bg-zinc-700/60 hover:text-zinc-200"
+                        ? "border border-zinc-200 bg-zinc-50 text-zinc-900 hover:bg-zinc-100"
+                        : "border border-zinc-200 bg-white text-zinc-500 hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900"
                   }`}
                 >
                   {ep.number || "?"}
