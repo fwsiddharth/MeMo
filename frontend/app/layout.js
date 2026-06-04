@@ -1,6 +1,7 @@
 import "./globals.css";
 import NavShell from "../components/NavShell";
 import ClientSettingsProvider from "../components/ClientSettingsProvider";
+import AppStatusProvider from "../components/AppStatusProvider";
 
 export const metadata = {
   title: "MEMO",
@@ -14,9 +15,11 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        <ClientSettingsProvider>
-          <NavShell>{children}</NavShell>
-        </ClientSettingsProvider>
+        <AppStatusProvider>
+          <ClientSettingsProvider>
+            <NavShell>{children}</NavShell>
+          </ClientSettingsProvider>
+        </AppStatusProvider>
       </body>
     </html>
   );

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Layers3, Search, UserCircle2 } from "lucide-react";
+import { Loader2, Layers3, Search, UserCircle2, WifiOff } from "lucide-react";
+import { useAppStatus } from "./AppStatusProvider";
 
 const navItems = [
   { href: "/", label: "Home" },
@@ -17,6 +18,7 @@ function isActive(pathname, href) {
 
 export default function NavShell({ children }) {
   const pathname = usePathname();
+  const { backendStatus, routePending, routeLabel } = useAppStatus();
 
   if (pathname === "/login") {
     return <div className="min-h-screen overflow-x-clip bg-zinc-950 text-zinc-100">{children}</div>;
@@ -85,6 +87,42 @@ export default function NavShell({ children }) {
           </div>
         </div>
       </header>
+
+      <div className="pointer-events-none sticky top-[4.5rem] z-40 px-4 md:px-6 xl:px-8">
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-2">
+          {backendStatus !== "online" ? (
+            <div className="pointer-events-auto flex items-center gap-3 rounded-2xl border border-amber-400/25 bg-amber-500/10 px-4 py-2 text-sm text-amber-100 shadow-[0_12px_40px_rgba(0,0,0,0.25)] backdrop-blur-xl">
+              <WifiOff size={16} className="shrink-0 text-amber-300" />
+              <div className="min-w-0">
+                <p className="font-medium">
+                  {backendStatus === "checking" ? "Reconnecting to backend..." : "Backend is sleeping."}
+                </p>
+                <p className="text-xs text-amber-100/75">
+                  {backendStatus === "checking"
+                    ? "Loading again. Your data will come back once Render wakes up."
+                    : "The free backend is offline right now and will wake on the next request."}
+                </p>
+              </div>
+              <div className="ml-auto flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-amber-200">
+                <span className="h-2 w-2 rounded-full bg-amber-300 animate-pulse" />
+                {backendStatus === "checking" ? "Loading" : "Offline"}
+              </div>
+            </div>
+          ) : null}
+
+          {routePending ? (
+            <div className="pointer-events-auto flex items-center gap-3 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-2 text-sm text-cyan-100 shadow-[0_12px_40px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+              <Loader2 size={16} className="shrink-0 animate-spin text-cyan-300" />
+              <div className="min-w-0">
+                <p className="font-medium">Opening {routeLabel || "page"}...</p>
+                <p className="text-xs text-cyan-100/75">
+                  Hang tight while the next view loads.
+                </p>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
 
       <main className="flex-1 px-4 pb-4 pt-5 md:px-6 md:pb-6 md:pt-6 xl:px-8">
         {children}
